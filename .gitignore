@@ -1,0 +1,35 @@
+# Java / Maven
+*.class
+*.jar
+*.war
+*.ear
+target/
+.mvn/*
+!.mvn/wrapper/
+!.mvn/wrapper/maven-wrapper.properties
+!.mvn/wrapper/maven-wrapper.jar
+
+# Node.js / Angular
+node_modules/
+dist/
+.angular/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# macOS
+.DS_Store
+
+# Fichiers d'étude de cas à la racine du dépôt
+/Enonce_Etude_de_cas_PMT.pdf
+/FT_Etude_de_cas_PMT.docx
+/FT_Etude_de_cas_PMT.pdf
