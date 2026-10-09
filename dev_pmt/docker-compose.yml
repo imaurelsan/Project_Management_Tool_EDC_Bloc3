@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.0
+    build: ./database
     container_name: pmt_mysql
     restart: unless-stopped
     environment:
@@ -10,7 +10,6 @@ services:
       - "3306:3306"
     volumes:
       - pmt_mysql_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
 volumes:
   pmt_mysql_data:
