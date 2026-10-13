@@ -5,33 +5,100 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
+/**
+ * Représente l'appartenance d'un utilisateur à un projet.
+ * Cette entité fait le lien entre un utilisateur et un projet,
+ * et précise le rôle de l'utilisateur dans ce projet
+ * (administrateur, membre ou observateur).
+ * Un même utilisateur ne peut être associé qu'une seule fois à un même projet.
+ */
 @Entity
-@Table(name = "project_member")
+@Table(name = "project_members", uniqueConstraints = @UniqueConstraint(columnNames = { "project_id", "user_id" }))
 public class ProjectMember {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+
+    /**
+     * Projet auquel appartient l'utilisateur.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+
+    /**
+     * Utilisateur associé à ce projet.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
-    @Column(nullable = false)
-    private String role;
+
+    /**
+     * Rôle de l'utilisateur dans le projet (administrateur, membre ou observateur).
+     */
+    @Enumerated(EnumType.STRING)
+    @NotNull
+    private ProjectRole role;
+
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false)
     private LocalDateTime joinedAt;
 
-    public ProjectMember() {}
-    public ProjectMember(Project project, User user, String role) { this.project = project; this.user = user; this.role = role; }
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public Project getProject() { return project; }
-    public void setProject(Project project) { this.project = project; }
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
-    public LocalDateTime getJoinedAt() { return joinedAt; }
-    public void setJoinedAt(LocalDateTime joinedAt) { this.joinedAt = joinedAt; }
+    public ProjectMember() {
+    }
+
+    /**
+     * Constructeur pour initialiser un objet ProjectMember avec le projet,
+     * l'utilisateur et le rôle.
+     * 
+     * @param project Projet auquel appartient l'utilisateur.
+     * @param user    Utilisateur associé à ce projet.
+     * @param role    Rôle de l'utilisateur dans le projet (administrateur, membre
+     *                ou observateur).
+     */
+    public ProjectMember(Project project, User user, ProjectRole role) {
+        this.project = project;
+        this.user = user;
+        this.role = role;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public ProjectRole getRole() {
+        return role;
+    }
+
+    public void setRole(ProjectRole role) {
+        this.role = role;
+    }
+
+    public LocalDateTime getJoinedAt() {
+        return joinedAt;
+    }
+
+    public void setJoinedAt(LocalDateTime joinedAt) {
+        this.joinedAt = joinedAt;
+    }
 }

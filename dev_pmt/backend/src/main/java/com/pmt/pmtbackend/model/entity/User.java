@@ -1,5 +1,3 @@
-</think>
-
 package com.pmt.pmtbackend.model.entity;
 
 import jakarta.persistence.*;
