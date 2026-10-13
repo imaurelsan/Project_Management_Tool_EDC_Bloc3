@@ -1,3 +1,5 @@
+</think>
+
 package com.pmt.pmtbackend.model.entity;
 
 import jakarta.persistence.*;
@@ -7,39 +9,59 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Représente un utilisateur de l'application.
+ * Un utilisateur peut créer des projets, être membre de projets,
+ * se voir assigner des tâches et recevoir des notifications.
+ */
 @Entity
-@Table(name = "user")
+@Table(name = "users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * Nom d'utilisateur unique, utilisé pour l'authentification.
+     */
     @Column(unique = true, nullable = false)
+    @NotBlank(message = "Le nom d'utilisateur est obligatoire.")
+    @Size(min = 3, max = 50, message = "Le nom d'utilisateur doit avoir entre 3 et 50 caractères.")
     private String username;
 
+    /**
+     * Adresse e-mail unique associée à l'utilisateur.
+     */
     @Column(unique = true, nullable = false)
+    @NotBlank(message = "L'e-mail est obligatoire.")
+    @Email(message = "L'e-mail doit être valide.")
     private String email;
 
+    /**
+     * Mot de passe de l'utilisateur (haché).
+     */
     @Column(nullable = false)
+    @NotBlank(message = "Le mot de passe est obligatoire.")
+    @Size(min = 8, message = "Le mot de passe doit avoir au moins 8 caractères.")
     private String password;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<Project> ownedProjects = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<ProjectMember> projectMemberships = new ArrayList<>();
 
-    @OneToMany(mappedBy = "assignee", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "assignee", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<Task> assignedTasks = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
-    @OneToMany(mappedBy = "modifiedBy", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "modifiedBy", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<History> histories = new ArrayList<>();
 
     public User() {}
@@ -71,3 +93,4 @@ public class User {
     public List<History> getHistories() { return histories; }
     public void setHistories(List<History> histories) { this.histories = histories; }
 }
+
