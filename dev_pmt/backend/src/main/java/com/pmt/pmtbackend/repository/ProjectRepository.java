@@ -18,8 +18,13 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
      * @param createdBy l'utilisateur créateur
      * @return liste des projets créés par cet utilisateur
      */
-    List<Project> findByCreatedBy(User createdBy);
-
+    List<Project> findByOwner(User owner);
+    /**
+     * Récupère tous les projets appartenant à un utilisateur donné par son ID.
+     * @param ownerId l'ID de l'utilisateur propriétaire
+     * @return liste des projets appartenant à cet utilisateur
+     */
+    List<Project> findByOwnerId(Long ownerId);
     /**
      * Recherche les projets par partie de nom (insensible à la casse).
      * @param name la portion du nom à rechercher

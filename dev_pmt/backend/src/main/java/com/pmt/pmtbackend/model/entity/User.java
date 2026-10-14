@@ -17,7 +17,7 @@ import java.util.List;
  * se voir assigner des tâches et recevoir des notifications.
  */
 @Entity
-@Table(name = "users")
+@Table(name = "user")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

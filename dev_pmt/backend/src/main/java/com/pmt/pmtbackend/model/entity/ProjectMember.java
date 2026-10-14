@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
  * Un même utilisateur ne peut être associé qu'une seule fois à un même projet.
  */
 @Entity
-@Table(name = "project_members", uniqueConstraints = @UniqueConstraint(columnNames = { "project_id", "user_id" }))
+@Table(name = "project_member", uniqueConstraints = @UniqueConstraint(columnNames = { "project_id", "user_id" }))
 public class ProjectMember {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

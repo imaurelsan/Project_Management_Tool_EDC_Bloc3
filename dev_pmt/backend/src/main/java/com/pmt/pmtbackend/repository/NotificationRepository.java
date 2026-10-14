@@ -25,5 +25,5 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * @param user l'utilisateur
      * @return liste des notifications non-lues
      */
-    List<Notification> findByUserAndIsReadFalse(User user);
+    List<Notification> findByUserAndReadFalse(User user);
 }

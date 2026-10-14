@@ -19,7 +19,7 @@ import java.util.List;
  * et un niveau de priorité (faible, moyen, haute, critique).
  */
 @Entity
-@Table(name = "tasks")
+@Table(name = "task")
 public class Task {
 
     @Id

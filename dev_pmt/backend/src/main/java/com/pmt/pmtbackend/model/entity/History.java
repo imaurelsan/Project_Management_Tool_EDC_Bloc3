@@ -15,7 +15,7 @@ import java.time.LocalDate;
  * de l'auteur de la modification et de la date à laquelle elle a eu lieu.
  */
 @Entity
-@Table(name = "histories")
+@Table(name = "history")
 public class History {
 
     /** Identifiant unique de l'entrée d'historique (généré par la base). */
