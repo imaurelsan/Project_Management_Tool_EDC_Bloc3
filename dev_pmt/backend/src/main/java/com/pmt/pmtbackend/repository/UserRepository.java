@@ -20,6 +20,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
 
     /**
+     * Vérifie si un utilisateur existe déjà avec l'adresse e-mail spécifiée.
+     * @param email l'e-mail à vérifier
+     * @return true si un utilisateur existe avec cet e-mail, false sinon
+     */
+    boolean existsByEmail(String email);
+
+    /**
      * Recherche un utilisateur par son adresse e-mail.
      * @param email l'adresse e-mail (unique)
      * @return Optional contenant l'utilisateur trouvé
