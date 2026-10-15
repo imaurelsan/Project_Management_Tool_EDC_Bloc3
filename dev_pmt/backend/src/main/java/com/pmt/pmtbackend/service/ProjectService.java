@@ -20,21 +20,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service de gestion des projets et de leurs membres.
- * Les règles d'accès sont vérifiées ici : un ADMINISTRATOR gère les membres,
- * un membre peut consulter le projet, et le dernier administrateur ne peut pas être rétrogradé.
+ * Les actions d'administration sont réservées aux membres ayant le rôle ADMINISTRATOR.
  */
 @Service
-@Transactional(readOnly = true)
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
 
+    /**
+     * Constructeur avec injection des dépendances.
+     *
+     * @param projectRepository le repository des projets
+     * @param projectMemberRepository le repository des appartenances projet/utilisateur
+     * @param userRepository le repository des utilisateurs
+     */
     public ProjectService(ProjectRepository projectRepository,
                           ProjectMemberRepository projectMemberRepository,
                           UserRepository userRepository) {
@@ -44,19 +48,27 @@ public class ProjectService {
     }
 
     /**
-     * Crée un projet et enregistre le créateur comme ADMINISTRATOR.
+     * Crée un projet. L'utilisateur courant en devient propriétaire et administrateur.
      *
-     * @param request les informations du projet
-     * @param actingUserId l'identifiant du créateur
+     * @param userId l'identifiant de l'utilisateur courant
+     * @param request les données du projet
      * @return le projet créé
      */
     @Transactional
-    public ProjectDto createProject(ProjectRequest request, Long actingUserId) {
-        User creator = getUserById(actingUserId);
-        Project project = projectRepository.save(
-                new Project(request.name(), request.description(), creator));
+    public ProjectDto create(Long userId, ProjectRequest request) {
+        User owner = getUserById(userId);
 
-        projectMemberRepository.save(new ProjectMember(project, creator, ProjectRole.ADMINISTRATOR));
+        Project project = new Project();
+        project.setName(request.name());
+        project.setDescription(request.description());
+        project.setOwner(owner);
+        projectRepository.save(project);
+
+        ProjectMember membership = new ProjectMember();
+        membership.setProject(project);
+        membership.setUser(owner);
+        membership.setRole(ProjectRole.ADMINISTRATOR);
+        projectMemberRepository.save(membership);
 
         return convertToDto(project);
     }
@@ -64,127 +76,191 @@ public class ProjectService {
     /**
      * Liste les projets dont l'utilisateur est membre.
      *
-     * @param actingUserId l'identifiant de l'utilisateur
-     * @return la liste des projets
+     * @param userId l'identifiant de l'utilisateur courant
+     * @return la liste des projets accessibles
      */
-    public List<ProjectDto> getProjectsForUser(Long actingUserId) {
-        User user = getUserById(actingUserId);
+    @Transactional(readOnly = true)
+    public List<ProjectDto> getAllForUser(Long userId) {
+        User user = getUserById(userId);
         return projectMemberRepository.findByUser(user).stream()
                 .map(ProjectMember::getProject)
-                .distinct()
                 .map(this::convertToDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
-     * Retourne un projet si l'utilisateur en est membre.
+     * Récupère un projet dont l'utilisateur est membre.
      *
+     * @param userId l'identifiant de l'utilisateur courant
      * @param projectId l'identifiant du projet
-     * @param actingUserId l'identifiant de l'utilisateur
-     * @return le projet
-     * @throws ForbiddenException si l'utilisateur n'est pas membre du projet
+     * @return le projet demandé
      */
-    public ProjectDto getProject(Long projectId, Long actingUserId) {
-        User user = getUserById(actingUserId);
+    @Transactional(readOnly = true)
+    public ProjectDto getById(Long userId, Long projectId) {
+        User user = getUserById(userId);
         Project project = getProjectById(projectId);
-        requireMember(user, project);
+        requireMembership(user, project);
         return convertToDto(project);
     }
 
     /**
-     * Ajoute un utilisateur au projet avec le rôle demandé. Réservé aux administrateurs.
+     * Met à jour un projet. Réservé aux administrateurs du projet.
      *
+     * @param userId l'identifiant de l'utilisateur courant
      * @param projectId l'identifiant du projet
-     * @param request l'email et le rôle du nouveau membre
-     * @param actingUserId l'identifiant de l'utilisateur qui agit
-     * @return le membre ajouté
-     * @throws ForbiddenException si l'auteur n'est pas administrateur
-     * @throws ResourceNotFoundException si aucun utilisateur ne correspond à cet email
-     * @throws DuplicateResourceException si l'utilisateur est déjà membre
+     * @param request les nouvelles données
+     * @return le projet mis à jour
      */
     @Transactional
-    public ProjectMemberDto addMember(Long projectId, AddMemberRequest request, Long actingUserId) {
-        User actingUser = getUserById(actingUserId);
+    public ProjectDto update(Long userId, Long projectId, ProjectRequest request) {
+        User user = getUserById(userId);
         Project project = getProjectById(projectId);
-        requireAdministrator(actingUser, project);
+        requireAdministrator(user, project);
 
-        User newUser = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new ResourceNotFoundException("Aucun utilisateur trouvé avec cet email."));
-
-        if (findMembership(newUser, project).isPresent()) {
-            throw new DuplicateResourceException("L'utilisateur est déjà membre de ce projet.");
-        }
-
-        ProjectMember member = projectMemberRepository.save(
-                new ProjectMember(project, newUser, request.role()));
-        return convertToDto(member);
+        project.setName(request.name());
+        project.setDescription(request.description());
+        projectRepository.save(project);
+        return convertToDto(project);
     }
 
     /**
-     * Modifie le rôle d'un membre. Réservé aux administrateurs.
-     * Le dernier administrateur d'un projet ne peut pas être rétrogradé.
+     * Supprime un projet. Réservé aux administrateurs du projet.
      *
+     * @param userId l'identifiant de l'utilisateur courant
      * @param projectId l'identifiant du projet
-     * @param userId l'identifiant du membre concerné
-     * @param request le nouveau rôle
-     * @param actingUserId l'identifiant de l'utilisateur qui agit
-     * @return le membre mis à jour
-     * @throws ForbiddenException si l'auteur n'est pas administrateur, ou si l'on rétrograde le dernier administrateur
-     * @throws ResourceNotFoundException si le membre n'existe pas dans ce projet
      */
     @Transactional
-    public ProjectMemberDto updateMemberRole(Long projectId, Long userId,
-                                             UpdateMemberRoleRequest request, Long actingUserId) {
-        User actingUser = getUserById(actingUserId);
+    public void delete(Long userId, Long projectId) {
+        User user = getUserById(userId);
         Project project = getProjectById(projectId);
-        requireAdministrator(actingUser, project);
-
-        ProjectMember member = findMembership(getUserById(userId), project)
-                .orElseThrow(() -> new ResourceNotFoundException("Membre non trouvé dans ce projet."));
-
-        boolean isDemotion = member.getRole() == ProjectRole.ADMINISTRATOR
-                && request.role() != ProjectRole.ADMINISTRATOR;
-        if (isDemotion) {
-            long adminCount = projectMemberRepository.findByProjectAndRole(project, ProjectRole.ADMINISTRATOR).size();
-            if (adminCount <= 1) {
-                throw new ForbiddenException("Impossible de retirer le rôle d'administrateur au dernier administrateur.");
-            }
-        }
-
-        member.setRole(request.role());
-        return convertToDto(projectMemberRepository.save(member));
+        requireAdministrator(user, project);
+        projectRepository.delete(project);
     }
 
     /**
-     * Liste les membres d'un projet. Accessible à tous les membres.
+     * Liste les membres d'un projet dont l'utilisateur fait partie.
      *
+     * @param userId l'identifiant de l'utilisateur courant
      * @param projectId l'identifiant du projet
-     * @param actingUserId l'identifiant de l'utilisateur qui agit
      * @return la liste des membres
-     * @throws ForbiddenException si l'utilisateur n'est pas membre du projet
      */
-    public List<ProjectMemberDto> getMembers(Long projectId, Long actingUserId) {
-        User user = getUserById(actingUserId);
+    @Transactional(readOnly = true)
+    public List<ProjectMemberDto> getMembers(Long userId, Long projectId) {
+        User user = getUserById(userId);
         Project project = getProjectById(projectId);
-        requireMember(user, project);
-
+        requireMembership(user, project);
         return projectMemberRepository.findByProject(project).stream()
                 .map(this::convertToDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // ---------- Méthodes privées ----------
+    /**
+     * Ajoute un utilisateur existant à un projet. Réservé aux administrateurs.
+     * L'e-mail est normalisé avant la recherche.
+     *
+     * @param userId l'identifiant de l'utilisateur courant
+     * @param projectId l'identifiant du projet
+     * @param request l'e-mail du membre et son rôle
+     * @return le membre ajouté
+     */
+    @Transactional
+    public ProjectMemberDto addMember(Long userId, Long projectId, AddMemberRequest request) {
+        User user = getUserById(userId);
+        Project project = getProjectById(projectId);
+        requireAdministrator(user, project);
 
+        String email = normalizeEmail(request.email());
+        User newMember = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Aucun utilisateur trouvé avec cet e-mail."));
+
+        if (findMembership(newMember, project).isPresent()) {
+            throw new DuplicateResourceException("Cet utilisateur est déjà membre du projet.");
+        }
+
+        ProjectMember membership = new ProjectMember();
+        membership.setProject(project);
+        membership.setUser(newMember);
+        membership.setRole(request.role());
+        projectMemberRepository.save(membership);
+        return convertToDto(membership);
+    }
+
+    /**
+     * Modifie le rôle d'un membre. Réservé aux administrateurs du projet.
+     *
+     * @param userId l'identifiant de l'utilisateur courant
+     * @param projectId l'identifiant du projet
+     * @param memberUserId l'identifiant de l'utilisateur membre à modifier
+     * @param request le nouveau rôle
+     * @return le membre mis à jour
+     */
+    @Transactional
+    public ProjectMemberDto updateMemberRole(Long userId, Long projectId, Long memberUserId,
+                                             UpdateMemberRoleRequest request) {
+        User user = getUserById(userId);
+        Project project = getProjectById(projectId);
+        requireAdministrator(user, project);
+
+        User target = getUserById(memberUserId);
+        ProjectMember membership = findMembership(target, project)
+                .orElseThrow(() -> new ResourceNotFoundException("Cet utilisateur n'est pas membre du projet."));
+
+        membership.setRole(request.role());
+        projectMemberRepository.save(membership);
+        return convertToDto(membership);
+    }
+
+    /**
+     * Retire un membre d'un projet. Réservé aux administrateurs du projet.
+     *
+     * @param userId l'identifiant de l'utilisateur courant
+     * @param projectId l'identifiant du projet
+     * @param memberUserId l'identifiant de l'utilisateur à retirer
+     */
+    @Transactional
+    public void removeMember(Long userId, Long projectId, Long memberUserId) {
+        User user = getUserById(userId);
+        Project project = getProjectById(projectId);
+        requireAdministrator(user, project);
+
+        User target = getUserById(memberUserId);
+        ProjectMember membership = findMembership(target, project)
+                .orElseThrow(() -> new ResourceNotFoundException("Cet utilisateur n'est pas membre du projet."));
+
+        projectMemberRepository.delete(membership);
+    }
+
+    /**
+     * Recherche l'appartenance d'un utilisateur à un projet.
+     *
+     * @param user l'utilisateur
+     * @param project le projet
+     * @return l'appartenance si elle existe
+     */
     private Optional<ProjectMember> findMembership(User user, Project project) {
         return projectMemberRepository.findByProjectAndUser(project, user);
     }
 
-    private void requireMember(User user, Project project) {
+    /**
+     * Vérifie que l'utilisateur est membre du projet.
+     *
+     * @param user l'utilisateur
+     * @param project le projet
+     * @throws ForbiddenException si l'utilisateur n'est pas membre
+     */
+    private void requireMembership(User user, Project project) {
         if (findMembership(user, project).isEmpty()) {
-            throw new ForbiddenException("L'utilisateur n'est pas membre de ce projet.");
+            throw new ForbiddenException("Vous n'êtes pas membre de ce projet.");
         }
     }
 
+    /**
+     * Vérifie que l'utilisateur est administrateur du projet.
+     *
+     * @param user l'utilisateur
+     * @param project le projet
+     * @throws ForbiddenException si l'utilisateur n'est pas administrateur
+     */
     private void requireAdministrator(User user, Project project) {
         boolean isAdmin = findMembership(user, project)
                 .map(pm -> pm.getRole() == ProjectRole.ADMINISTRATOR)
@@ -194,6 +270,22 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Normalise un e-mail : suppression des espaces et passage en minuscules.
+     *
+     * @param email l'e-mail brut
+     * @return l'e-mail normalisé
+     */
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase();
+    }
+
+    /**
+     * Convertit un projet en DTO.
+     *
+     * @param project le projet
+     * @return le DTO correspondant
+     */
     private ProjectDto convertToDto(Project project) {
         return new ProjectDto(
                 project.getId(),
@@ -204,19 +296,39 @@ public class ProjectService {
                 project.getOwner().getUsername());
     }
 
+    /**
+     * Convertit une appartenance en DTO.
+     *
+     * @param member l'appartenance
+     * @return le DTO correspondant
+     */
     private ProjectMemberDto convertToDto(ProjectMember member) {
         return new ProjectMemberDto(
-                member.getId(),
+                member.getUser().getId(),
                 member.getUser().getUsername(),
                 member.getUser().getEmail(),
                 member.getRole());
     }
 
+    /**
+     * Charge un utilisateur par son identifiant.
+     *
+     * @param userId l'identifiant
+     * @return l'utilisateur
+     * @throws ResourceNotFoundException si introuvable
+     */
     private User getUserById(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé."));
     }
 
+    /**
+     * Charge un projet par son identifiant.
+     *
+     * @param projectId l'identifiant
+     * @return le projet
+     * @throws ResourceNotFoundException si introuvable
+     */
     private Project getProjectById(Long projectId) {
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Projet non trouvé."));
