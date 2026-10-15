@@ -1,12 +1,14 @@
 package com.pmt.pmtbackend.repository;
 
-import com.pmt.pmtbackend.model.entity.ProjectMember;
 import com.pmt.pmtbackend.model.entity.Project;
+import com.pmt.pmtbackend.model.entity.ProjectMember;
+import com.pmt.pmtbackend.model.entity.ProjectRole;
 import com.pmt.pmtbackend.model.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import java.util.Optional;
+
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository pour l'entité ProjectMember.
@@ -17,7 +19,6 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 
     /**
      * Recherche l'association entre un projet et un utilisateur.
-     * Permet de récupérer le rôle d'un utilisateur dans un projet donné.
      * @param project le projet
      * @param user l'utilisateur
      * @return Optional contenant l'association trouvée
@@ -30,4 +31,19 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
      * @return liste des membres du projet
      */
     List<ProjectMember> findByProject(Project project);
+
+    /**
+     * Récupère tous les membres d'un utilisateur.
+     * @param user l'utilisateur
+     * @return liste des membres de cet utilisateur
+     */
+    List<ProjectMember> findByUser(User user);
+
+    /**
+     * Récupère tous les membres d'un projet avec un rôle spécifique.
+     * @param project le projet
+     * @param role le rôle à filtrer
+     * @return liste des membres du projet avec ce rôle
+     */
+    List<ProjectMember> findByProjectAndRole(Project project, ProjectRole role);
 }
