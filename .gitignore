@@ -26,9 +26,9 @@ yarn-error.log*
 .project
 .settings/
 
-# Secrets et variables d'environnement locales
-.env
-*.env
+# # Secrets et variables d'environnement locales
+# .env
+# *.env
 !.env.example
 
 # macOS

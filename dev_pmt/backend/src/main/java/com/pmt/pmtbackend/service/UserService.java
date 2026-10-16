@@ -14,8 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service pour la gestion des utilisateurs.
- * Permet d'enregistrer, de connecter et de récupérer les informations d'un utilisateur.
- * Les e-mails sont normalisés (espaces retirés, minuscules) avant tout traitement.
+ * Permet d'enregistrer, de connecter et de récupérer les informations d'un
+ * utilisateur.
+ * Les e-mails sont normalisés (espaces retirés, minuscules) avant tout
+ * traitement.
  */
 @Service
 public class UserService {
@@ -26,7 +28,7 @@ public class UserService {
     /**
      * Constructeur avec injection des dépendances.
      *
-     * @param userRepository le repository pour accéder aux utilisateurs
+     * @param userRepository  le repository pour accéder aux utilisateurs
      * @param passwordEncoder l'encodeur de mot de passe BCrypt
      */
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
@@ -49,6 +51,9 @@ public class UserService {
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException("Cet e-mail est déjà utilisé.");
         }
+        if (userRepository.existsByUsername(registerRequest.username())) {
+            throw new DuplicateResourceException("Ce nom d'utilisateur est déjà pris.");
+        }
 
         User user = new User();
         user.setUsername(registerRequest.username());
@@ -61,16 +66,18 @@ public class UserService {
 
     /**
      * Connecte un utilisateur à partir de son e-mail et de son mot de passe.
-     * Le message d'erreur est identique que l'e-mail soit inconnu ou que le mot de passe soit faux,
+     * Le message d'erreur est identique que l'e-mail soit inconnu ou que le mot de
+     * passe soit faux,
      * afin de ne pas révéler l'existence d'un compte.
      *
      * @param loginRequest les informations de connexion
      * @return le DTO de l'utilisateur connecté
-     * @throws UnauthorizedException si l'e-mail est inconnu ou le mot de passe incorrect
+     * @throws UnauthorizedException si l'e-mail est inconnu ou le mot de passe
+     *                               incorrect
      */
     @Transactional(readOnly = true)
     public UserDto login(LoginRequest loginRequest) {
-        User user = userRepository.findByEmail(loginRequest.email())
+        User user = userRepository.findByEmail(normalizeEmail(loginRequest.email()))
                 .orElseThrow(() -> new UnauthorizedException("Identifiants invalides."));
 
         if (!passwordEncoder.matches(loginRequest.password(), user.getPassword())) {
@@ -85,7 +92,8 @@ public class UserService {
      *
      * @param id l'identifiant de l'utilisateur
      * @return le DTO de l'utilisateur trouvé
-     * @throws ResourceNotFoundException si aucun utilisateur ne correspond à cet identifiant
+     * @throws ResourceNotFoundException si aucun utilisateur ne correspond à cet
+     *                                   identifiant
      */
     @Transactional(readOnly = true)
     public UserDto getById(Long id) {
@@ -95,7 +103,8 @@ public class UserService {
     }
 
     /**
-     * Normalise une adresse e-mail : suppression des espaces en début et fin, puis passage en minuscules.
+     * Normalise une adresse e-mail : suppression des espaces en début et fin, puis
+     * passage en minuscules.
      *
      * @param email l'e-mail brut saisi par l'utilisateur
      * @return l'e-mail normalisé
