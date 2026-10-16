@@ -51,22 +51,43 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    /**
+     * Projets créés par cet utilisateur.
+     * Relation inverse : la clé étrangère est portée par Project (created_by).
+     */
+    @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY)
     private List<Project> ownedProjects = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    /**
+     * Appartenances de cet utilisateur aux projets (table project_member).
+     * Relation inverse : la clé étrangère est portée par ProjectMember (user_id).
+     */
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<ProjectMember> projectMemberships = new ArrayList<>();
 
-    @OneToMany(mappedBy = "assignee", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    /**
+     * Tâches assignées à cet utilisateur.
+     * Relation inverse : la clé étrangère est portée par Task (assigned_to).
+     */
+    @OneToMany(mappedBy = "assignee", fetch = FetchType.LAZY)
     private List<Task> assignedTasks = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    /**
+     * Notifications reçues par cet utilisateur.
+     * Relation inverse : la clé étrangère est portée par Notification (user_id).
+     */
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<Notification> notifications = new ArrayList<>();
 
-    @OneToMany(mappedBy = "modifiedBy", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    /**
+     * Modifications de tâches effectuées par cet utilisateur.
+     * Relation inverse : la clé étrangère est portée par History (modified_by).
+     */
+    @OneToMany(mappedBy = "modifiedBy", fetch = FetchType.LAZY)
     private List<History> histories = new ArrayList<>();
 
-    public User() {}
+    public User() {
+    }
 
     public User(String username, String email, String password) {
         this.username = username;
@@ -74,25 +95,83 @@ public class User {
         this.password = password;
     }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public List<Project> getOwnedProjects() { return ownedProjects; }
-    public void setOwnedProjects(List<Project> ownedProjects) { this.ownedProjects = ownedProjects; }
-    public List<ProjectMember> getProjectMemberships() { return projectMemberships; }
-    public void setProjectMemberships(List<ProjectMember> projectMemberships) { this.projectMemberships = projectMemberships; }
-    public List<Task> getAssignedTasks() { return assignedTasks; }
-    public void setAssignedTasks(List<Task> assignedTasks) { this.assignedTasks = assignedTasks; }
-    public List<Notification> getNotifications() { return notifications; }
-    public void setNotifications(List<Notification> notifications) { this.notifications = notifications; }
-    public List<History> getHistories() { return histories; }
-    public void setHistories(List<History> histories) { this.histories = histories; }
-}
+    public Long getId() {
+        return id;
+    }
 
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public List<Project> getOwnedProjects() {
+        return ownedProjects;
+    }
+
+    public void setOwnedProjects(List<Project> ownedProjects) {
+        this.ownedProjects = ownedProjects;
+    }
+
+    public List<ProjectMember> getProjectMemberships() {
+        return projectMemberships;
+    }
+
+    public void setProjectMemberships(List<ProjectMember> projectMemberships) {
+        this.projectMemberships = projectMemberships;
+    }
+
+    public List<Task> getAssignedTasks() {
+        return assignedTasks;
+    }
+
+    public void setAssignedTasks(List<Task> assignedTasks) {
+        this.assignedTasks = assignedTasks;
+    }
+
+    public List<Notification> getNotifications() {
+        return notifications;
+    }
+
+    public void setNotifications(List<Notification> notifications) {
+        this.notifications = notifications;
+    }
+
+    public List<History> getHistories() {
+        return histories;
+    }
+
+    public void setHistories(List<History> histories) {
+        this.histories = histories;
+    }
+}
