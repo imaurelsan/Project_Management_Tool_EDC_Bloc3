@@ -1,18 +1,16 @@
 package com.pmt.pmtbackend.model.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Représente une entrée de l'historique des modifications d'une tâche.
  * Elle conserve la trace du champ modifié, de l'ancienne et de la nouvelle valeur,
- * de l'auteur de la modification et de la date à laquelle elle a eu lieu.
+ * de l'auteur de la modification et la date et l'heure à laquelle elle a eu lieu.
  */
 @Entity
 @Table(name = "history")
@@ -39,10 +37,10 @@ public class History {
     @Column(name = "new_value")
     private String newValue;
 
-    /** Date de la modification, renseignée automatiquement à l'enregistrement. */
+    /** Date et heure de la modification, renseignées automatiquement à l'enregistrement. */
     @CreationTimestamp
     @Column(name = "modified_date", updatable = false)
-    private LocalDate modifiedDate;
+    private LocalDateTime modifiedDate;
 
     /** Tâche concernée par la modification (pas de cascade : on ne supprime jamais la tâche depuis l'historique). */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -82,8 +80,8 @@ public class History {
     public String getNewValue() { return newValue; }
     public void setNewValue(String newValue) { this.newValue = newValue; }
 
-    public LocalDate getModifiedDate() { return modifiedDate; }
-    public void setModifiedDate(LocalDate modifiedDate) { this.modifiedDate = modifiedDate; }
+    public LocalDateTime getModifiedDate() { return modifiedDate; }
+    public void setModifiedDate(LocalDateTime modifiedDate) { this.modifiedDate = modifiedDate; }
 
     public Task getTask() { return task; }
     public void setTask(Task task) { this.task = task; }

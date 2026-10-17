@@ -3,6 +3,9 @@ SET NAMES utf8mb4; /* Protège les caractères accentués */
 -- Création des tables du projet PMT (Project Management Tool)
 -- Les tables sont créées dans l'ordre de leurs dépendances.
 -- Les anciennes tables sont supprimées d'abord, dans l'ordre inverse des dépendances.
+-- La vérification des clés étrangères est désactivée le temps du rechargement.
+
+SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS history;
 DROP TABLE IF EXISTS notification;
@@ -10,6 +13,8 @@ DROP TABLE IF EXISTS task;
 DROP TABLE IF EXISTS project_member;
 DROP TABLE IF EXISTS project;
 DROP TABLE IF EXISTS `user`;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- Table user : les utilisateurs sont créés en premier.
 -- username est unique et sert à l'affichage ; email est unique et sert à la connexion.
@@ -83,12 +88,13 @@ CREATE TABLE notification (
 
 -- Table history : c'est l'historique qui garde une trace des modifications faites sur une tâche.
 -- Chaque ligne décrit un champ modifié, son ancienne et sa nouvelle valeur, l'auteur et la date.
+-- modified_date est en DATETIME(6) pour correspondre à LocalDateTime dans l'entité History.
 CREATE TABLE history (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     modified_field VARCHAR(100) NOT NULL,
     old_value VARCHAR(500),
     new_value VARCHAR(500),
-    modified_date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    modified_date DATETIME(6) NULL,
     task_id BIGINT NOT NULL,
     modified_by BIGINT NOT NULL,
     CONSTRAINT fk_history_task FOREIGN KEY (task_id) REFERENCES task (id),
@@ -96,7 +102,7 @@ CREATE TABLE history (
 );
 
 
--- ===== Tests pour la démonstration =====
+-- ===== Données de test pour la démonstration =====
 
 -- Table user : trois utilisateurs de test.
 -- Les mots de passe sont en clair pour la démonstration uniquement.
@@ -119,8 +125,9 @@ INSERT INTO project_member (id, role, project_id, user_id) VALUES
     (5, 'MEMBER', 2, 3);
 
 -- Table task : cinq tâches réparties sur les deux projets.
+-- Les tâches sont assignées uniquement à des membres pouvant agir (pas à un VIEWER).
 INSERT INTO task (id, name, description, priority, status, due_date, end_date, project_id, assigned_to) VALUES
-    (1, 'Maquetter la page accueil', 'Créer la maquette de la page accueil', 'HAUTE', 'FAIT', '2026-02-10', '2026-02-08', 1, 3),
+    (1, 'Maquetter la page accueil', 'Créer la maquette de la page accueil', 'HAUTE', 'FAIT', '2026-02-10', '2026-02-08', 1, 2),
     (2, 'Intégrer la page accueil', 'Développer la page accueil responsive', 'HAUTE', 'EN_COURS', '2026-03-15', NULL, 1, 2),
     (3, 'Définir les écrans mobiles', 'Lister les écrans principaux', 'MOYEN', 'A_FAIRE', '2026-03-20', NULL, 2, 3),
     (4, 'Configurer la connexion utilisateur', 'Ajouter la connexion par e-mail', 'HAUTE', 'A_FAIRE', '2026-04-01', NULL, 2, 2),
@@ -130,10 +137,10 @@ INSERT INTO task (id, name, description, priority, status, due_date, end_date, p
 INSERT INTO notification (id, message, is_read, task_id, user_id) VALUES
     (1, 'La tâche "Intégrer la page accueil" vous est assignée', FALSE, 2, 2),
     (2, 'Échéance proche pour la tâche "Définir les écrans mobiles"', FALSE, 3, 3),
-    (3, 'La tâche "Maquetter la page accueil" est terminée', TRUE, 1, 1);
+    (3, 'La tâche "Maquetter la page accueil" est terminée', TRUE, 1, 2);
 
--- Table history : trois modifications de test.
+-- Table history : trois modifications de test, dans l'ordre chronologique.
 INSERT INTO history (id, modified_field, old_value, new_value, modified_date, task_id, modified_by) VALUES
-    (1, 'status', 'A_FAIRE', 'EN_COURS', '2026-03-01', 2, 2),
-    (2, 'priority', 'MOYEN', 'HAUTE', '2026-02-05', 2, 1),
-    (3, 'status', 'EN_COURS', 'FAIT', '2026-02-08', 1, 3);
+    (1, 'priority', 'MOYEN', 'HAUTE', '2026-02-05 09:00:00.000000', 2, 1),
+    (2, 'status', 'A_FAIRE', 'EN_COURS', '2026-03-01 10:30:00.000000', 2, 2),
+    (3, 'status', 'EN_COURS', 'FAIT', '2026-02-08 17:15:00.000000', 1, 3);

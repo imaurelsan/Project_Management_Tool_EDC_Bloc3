@@ -2,11 +2,9 @@ package com.pmt.pmtbackend.model.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +42,6 @@ public class User {
      */
     @Column(nullable = false)
     @NotBlank(message = "Le mot de passe est obligatoire.")
-    @Size(min = 8, message = "Le mot de passe doit avoir au moins 8 caractères.")
     private String password;
 
     @CreationTimestamp
@@ -52,8 +49,8 @@ public class User {
     private LocalDateTime createdAt;
 
     /**
-     * Projets créés par cet utilisateur.
-     * Relation inverse : la clé étrangère est portée par Project (created_by).
+     * Projets créés (possédés) par cet utilisateur.
+     * Relation inverse : la clé étrangère est portée par Project (owner_id).
      */
     @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY)
     private List<Project> ownedProjects = new ArrayList<>();
@@ -67,7 +64,7 @@ public class User {
 
     /**
      * Tâches assignées à cet utilisateur.
-     * Relation inverse : la clé étrangère est portée par Task (assigned_to).
+     * Relation inverse : la clé étrangère est portée par Task (assignee_id).
      */
     @OneToMany(mappedBy = "assignee", fetch = FetchType.LAZY)
     private List<Task> assignedTasks = new ArrayList<>();
