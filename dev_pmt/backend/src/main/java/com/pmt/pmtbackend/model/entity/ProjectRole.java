@@ -5,7 +5,7 @@ package com.pmt.pmtbackend.model.entity;
  * Chaque rôle détermine les permissions de l'utilisateur dans le contexte du projet.
  *
  * Rôles disponibles :
- * - ADMINISTRATOR : Accès complet au projet (édition, suppression, gestion des membres)
+ * - ADMINISTRATOR : Accès complet au projet (édition, gestion des membres)
  * - MEMBER : Accès standard (création et édition de tâches, consultation)
  * - VIEWER : Accès lecture seule (consultation uniquement)
  *

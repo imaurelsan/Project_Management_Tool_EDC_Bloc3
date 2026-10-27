@@ -2,9 +2,14 @@ package com.pmt.pmtbackend.service;
 
 import com.pmt.pmtbackend.dto.TaskDto;
 import com.pmt.pmtbackend.dto.TaskRequest;
+import com.pmt.pmtbackend.exception.BadRequestException;
 import com.pmt.pmtbackend.exception.ForbiddenException;
 import com.pmt.pmtbackend.exception.ResourceNotFoundException;
-import com.pmt.pmtbackend.model.entity.*;
+import com.pmt.pmtbackend.model.entity.Project;
+import com.pmt.pmtbackend.model.entity.ProjectMember;
+import com.pmt.pmtbackend.model.entity.ProjectRole;
+import com.pmt.pmtbackend.model.entity.Task;
+import com.pmt.pmtbackend.model.entity.User;
 import com.pmt.pmtbackend.repository.ProjectMemberRepository;
 import com.pmt.pmtbackend.repository.ProjectRepository;
 import com.pmt.pmtbackend.repository.TaskRepository;
@@ -13,13 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Service de gestion des tâches d'un projet.
- * Les droits sont déduits du rôle de l'utilisateur dans le projet :
- * lecture pour tous les membres, écriture pour MEMBER et ADMINISTRATOR,
- * suppression et assignation réservées aux ADMINISTRATOR.
+ * - lecture : tous les membres (ADMINISTRATOR, MEMBER, VIEWER)
+ * - création, modification et assignation : ADMINISTRATOR et MEMBER
+ * - suppression : ADMINISTRATOR uniquement.
  */
 @Service
 public class TaskService {
@@ -30,18 +34,15 @@ public class TaskService {
     private final UserRepository userRepository;
 
     public TaskService(TaskRepository taskRepository,
-                       ProjectRepository projectRepository,
-                       ProjectMemberRepository projectMemberRepository,
-                       UserRepository userRepository) {
+            ProjectRepository projectRepository,
+            ProjectMemberRepository projectMemberRepository,
+            UserRepository userRepository) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
     }
 
-    /**
-     * Liste les tâches d'un projet. Accessible à tout membre.
-     */
     @Transactional(readOnly = true)
     public List<TaskDto> getTasks(Long userId, Long projectId) {
         Project project = getProjectById(projectId);
@@ -51,9 +52,6 @@ public class TaskService {
                 .toList();
     }
 
-    /**
-     * Consulte une tâche. Accessible à tout membre du projet.
-     */
     @Transactional(readOnly = true)
     public TaskDto getTask(Long userId, Long projectId, Long taskId) {
         Project project = getProjectById(projectId);
@@ -61,26 +59,21 @@ public class TaskService {
         return convertToDto(getTaskInProject(taskId, project));
     }
 
-    /**
-     * Crée une tâche. Réservé aux MEMBER et ADMINISTRATOR.
-     * L'assignation n'est possible que pour les administrateurs.
-     */
     @Transactional
     public TaskDto create(Long userId, Long projectId, TaskRequest request) {
         Project project = getProjectById(projectId);
         ProjectMember actor = getMembershipOrThrow(userId, project);
         requireCanWrite(actor);
 
+        // Validation de l'assignation avant toute modification de l'entité.
+        User assignee = resolveAssignee(request.assigneeId(), project);
+
         Task task = new Task();
-        applyRequest(task, request, project, actor);
+        applyFields(task, request, project, assignee);
         taskRepository.save(task);
         return convertToDto(task);
     }
 
-    /**
-     * Modifie une tâche. Réservé aux MEMBER et ADMINISTRATOR.
-     * Le changement d'assignation est réservé aux ADMINISTRATOR.
-     */
     @Transactional
     public TaskDto update(Long userId, Long projectId, Long taskId, TaskRequest request) {
         Project project = getProjectById(projectId);
@@ -88,14 +81,15 @@ public class TaskService {
         requireCanWrite(actor);
 
         Task task = getTaskInProject(taskId, project);
-        applyRequest(task, request, project, actor);
+
+        // Validation de l'assignation avant toute modification de l'entité.
+        User assignee = resolveAssignee(request.assigneeId(), project);
+
+        applyFields(task, request, project, assignee);
         taskRepository.save(task);
         return convertToDto(task);
     }
 
-    /**
-     * Supprime une tâche. Réservé aux ADMINISTRATOR.
-     */
     @Transactional
     public void delete(Long userId, Long projectId, Long taskId) {
         Project project = getProjectById(projectId);
@@ -108,39 +102,36 @@ public class TaskService {
     }
 
     /**
-     * Applique les champs d'une requête à une tâche, en vérifiant l'assignation.
+     * Vérifie et résout l'assigné demandé, sans modifier la tâche.
+     * L'assignation est permise aux ADMINISTRATOR et MEMBER (l'appelant a déjà
+     * été validé par requireCanWrite). Retourne null si l'assignation est retirée.
      */
-    private void applyRequest(Task task, TaskRequest request, Project project, ProjectMember actor) {
+    private User resolveAssignee(Long assigneeId, Project project) {
+        if (assigneeId == null) {
+            return null;
+        }
+        User assignee = userRepository.findById(assigneeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur assigné introuvable."));
+
+        ProjectMember assigneeMembership = projectMemberRepository.findByProjectAndUser(project, assignee)
+                .orElseThrow(() -> new BadRequestException("L'utilisateur assigné n'est pas membre du projet."));
+
+        if (assigneeMembership.getRole() == ProjectRole.VIEWER) {
+            throw new BadRequestException("Une tâche ne peut pas être assignée à un observateur (VIEWER).");
+        }
+        return assignee;
+    }
+
+    /**
+     * Applique les champs simples et l'assigné déjà validé.
+     */
+    private void applyFields(Task task, TaskRequest request, Project project, User assignee) {
         task.setTitle(request.title());
         task.setDescription(request.description());
         task.setStatus(request.status());
         task.setPriority(request.priority());
         task.setDueDate(request.dueDate());
         task.setProject(project);
-
-        if (request.assigneeId() == null) {
-            // Retirer l'assignation : autorisé pour un administrateur uniquement.
-            if (task.getAssignee() != null && actor.getRole() != ProjectRole.ADMINISTRATOR) {
-                throw new ForbiddenException("Seuls les administrateurs peuvent modifier l'assignation.");
-            }
-            task.setAssignee(null);
-            return;
-        }
-
-        boolean assigneeChanged = task.getAssignee() == null
-                || !task.getAssignee().getId().equals(request.assigneeId());
-        if (assigneeChanged && actor.getRole() != ProjectRole.ADMINISTRATOR) {
-            throw new ForbiddenException("Seuls les administrateurs peuvent modifier l'assignation.");
-        }
-
-        User assignee = userRepository.findById(request.assigneeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur assigné introuvable."));
-        ProjectMember assigneeMembership = projectMemberRepository.findByProjectAndUser(project, assignee)
-                .orElseThrow(() -> new ForbiddenException("L'utilisateur assigné n'est pas membre du projet."));
-
-        if (assigneeMembership.getRole() == ProjectRole.VIEWER) {
-            throw new ForbiddenException("Une tâche ne peut pas être assignée à un observateur (VIEWER).");
-        }
         task.setAssignee(assignee);
     }
 
@@ -158,11 +149,9 @@ public class TaskService {
     }
 
     private Task getTaskInProject(Long taskId, Project project) {
-        Optional<Task> task = taskRepository.findById(taskId);
-        if (task.isEmpty() || !task.get().getProject().getId().equals(project.getId())) {
-            throw new ResourceNotFoundException("Tâche non trouvée dans ce projet.");
-        }
-        return task.get();
+        return taskRepository.findById(taskId)
+                .filter(t -> t.getProject().getId().equals(project.getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Tâche non trouvée dans ce projet."));
     }
 
     private Project getProjectById(Long projectId) {
