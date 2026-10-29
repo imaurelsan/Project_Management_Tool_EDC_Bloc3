@@ -1,5 +1,6 @@
 package com.pmt.pmtbackend.service;
 
+import com.pmt.pmtbackend.dto.HistoryDto;
 import com.pmt.pmtbackend.dto.TaskDto;
 import com.pmt.pmtbackend.dto.TaskRequest;
 import com.pmt.pmtbackend.exception.BadRequestException;
@@ -10,6 +11,7 @@ import com.pmt.pmtbackend.model.entity.ProjectMember;
 import com.pmt.pmtbackend.model.entity.ProjectRole;
 import com.pmt.pmtbackend.model.entity.Task;
 import com.pmt.pmtbackend.model.entity.User;
+import com.pmt.pmtbackend.repository.HistoryRepository;
 import com.pmt.pmtbackend.repository.ProjectMemberRepository;
 import com.pmt.pmtbackend.repository.ProjectRepository;
 import com.pmt.pmtbackend.repository.TaskRepository;
@@ -24,6 +26,7 @@ import java.util.List;
  * - lecture : tous les membres (ADMINISTRATOR, MEMBER, VIEWER)
  * - création, modification et assignation : ADMINISTRATOR et MEMBER
  * - suppression : ADMINISTRATOR uniquement.
+ * - chaque modification est tracée dans l'historique.
  */
 @Service
 public class TaskService {
@@ -32,15 +35,21 @@ public class TaskService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+    private final HistoryRepository historyRepository;
+    private final HistoryService historyService;
 
     public TaskService(TaskRepository taskRepository,
             ProjectRepository projectRepository,
             ProjectMemberRepository projectMemberRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            HistoryRepository historyRepository,
+            HistoryService historyService) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
+        this.historyRepository = historyRepository;
+        this.historyService = historyService;
     }
 
     @Transactional(readOnly = true)
@@ -71,6 +80,15 @@ public class TaskService {
         Task task = new Task();
         applyFields(task, request, project, assignee);
         taskRepository.save(task);
+
+        // Création : anciennes valeurs null, on trace chaque champ renseigné.
+        User author = actor.getUser();
+        historyService.record("creation", null, task.getTitle(), task, author);
+        historyService.record("status", null, task.getStatus(), task, author);
+        historyService.record("priority", null, task.getPriority(), task, author);
+        historyService.record("assignee", null,
+                assignee != null ? assignee.getUsername() : null, task, author);
+
         return convertToDto(task);
     }
 
@@ -85,8 +103,27 @@ public class TaskService {
         // Validation de l'assignation avant toute modification de l'entité.
         User assignee = resolveAssignee(request.assigneeId(), project);
 
+        // Mémorisation des anciennes valeurs avant modification.
+        User author = actor.getUser();
+        String oldTitle = task.getTitle();
+        String oldDescription = task.getDescription();
+        Object oldStatus = task.getStatus();
+        Object oldPriority = task.getPriority();
+        Object oldDueDate = task.getDueDate();
+        User oldAssignee = task.getAssignee();
+
         applyFields(task, request, project, assignee);
         taskRepository.save(task);
+
+        historyService.record("title", oldTitle, task.getTitle(), task, author);
+        historyService.record("description", oldDescription, task.getDescription(), task, author);
+        historyService.record("status", oldStatus, task.getStatus(), task, author);
+        historyService.record("priority", oldPriority, task.getPriority(), task, author);
+        historyService.record("dueDate", oldDueDate, task.getDueDate(), task, author);
+        historyService.record("assignee",
+                oldAssignee != null ? oldAssignee.getUsername() : null,
+                assignee != null ? assignee.getUsername() : null, task, author);
+
         return convertToDto(task);
     }
 
@@ -99,6 +136,21 @@ public class TaskService {
         }
         Task task = getTaskInProject(taskId, project);
         taskRepository.delete(task);
+    }
+
+    /**
+     * Retourne l'historique d'une tâche, du plus récent au plus ancien. Accessible à tous les membres.
+     */
+    @Transactional(readOnly = true)
+    public List<HistoryDto> getHistory(Long userId, Long projectId, Long taskId) {
+        Project project = getProjectById(projectId);
+        getMembershipOrThrow(userId, project);
+        Task task = getTaskInProject(taskId, project);
+        return historyRepository.findByTaskOrderByModifiedDateDesc(task).stream()
+                .map(h -> new HistoryDto(h.getId(), h.getModifiedField(), h.getOldValue(),
+                        h.getNewValue(), h.getModifiedDate() != null ? h.getModifiedDate().toString() : null,
+                        h.getModifiedBy().getUsername()))
+                .toList();
     }
 
     /**

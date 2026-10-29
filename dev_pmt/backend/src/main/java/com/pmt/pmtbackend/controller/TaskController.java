@@ -1,5 +1,6 @@
 package com.pmt.pmtbackend.controller;
 
+import com.pmt.pmtbackend.dto.HistoryDto;
 import com.pmt.pmtbackend.dto.TaskDto;
 import com.pmt.pmtbackend.dto.TaskRequest;
 import com.pmt.pmtbackend.service.TaskService;
@@ -57,5 +58,17 @@ public class TaskController {
                        @PathVariable Long projectId,
                        @PathVariable Long taskId) {
         taskService.delete(userId, projectId, taskId);
+    }
+
+    /**
+     * GET /api/projects/{projectId}/tasks/{taskId}/history
+     * Retourne l'historique des modifications d'une tâche (tous les rôles).
+     * Réponses : 200 liste, 403 non membre, 404 tâche introuvable.
+     */
+    @GetMapping("/{taskId}/history")
+    public List<HistoryDto> getHistory(@RequestHeader("X-User-Id") Long userId,
+                                       @PathVariable Long projectId,
+                                       @PathVariable Long taskId) {
+        return taskService.getHistory(userId, projectId, taskId);
     }
 }
