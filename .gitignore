@@ -39,3 +39,5 @@ yarn-error.log*
 /FT_Etude_de_cas_PMT.docx
 /FT_Etude_de_cas_PMT.pdf
 dev_pmt/backend/m1.json
+dev_pmt/backend/m2.json
+dev_pmt/backend/m3.json
