@@ -73,7 +73,7 @@ public class User {
      * Notifications reçues par cet utilisateur.
      * Relation inverse : la clé étrangère est portée par Notification (user_id).
      */
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
     /**

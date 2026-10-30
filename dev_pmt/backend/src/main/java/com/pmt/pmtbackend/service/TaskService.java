@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Service de gestion des tâches d'un projet.
@@ -27,6 +28,7 @@ import java.util.List;
  * - création, modification et assignation : ADMINISTRATOR et MEMBER
  * - suppression : ADMINISTRATOR uniquement.
  * - chaque modification est tracée dans l'historique.
+ * - chaque nouvelle assignation déclenche une notification (base + e-mail).
  */
 @Service
 public class TaskService {
@@ -37,21 +39,38 @@ public class TaskService {
     private final UserRepository userRepository;
     private final HistoryRepository historyRepository;
     private final HistoryService historyService;
+    private final NotificationService notificationService;
 
+    /**
+     * Construit le service de gestion des tâches.
+     *
+     * @param taskRepository          dépôt des tâches
+     * @param projectRepository       dépôt des projets
+     * @param projectMemberRepository dépôt des membres des projets
+     * @param userRepository          dépôt des utilisateurs
+     * @param historyRepository       dépôt de l'historique
+     * @param historyService          service d'enregistrement de l'historique
+     * @param notificationService     service de notification d'assignation
+     */
     public TaskService(TaskRepository taskRepository,
             ProjectRepository projectRepository,
             ProjectMemberRepository projectMemberRepository,
             UserRepository userRepository,
             HistoryRepository historyRepository,
-            HistoryService historyService) {
+            HistoryService historyService,
+            NotificationService notificationService) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
         this.historyRepository = historyRepository;
         this.historyService = historyService;
+        this.notificationService = notificationService;
     }
 
+    /**
+     * Liste les tâches d'un projet. Accessible à tous les membres.
+     */
     @Transactional(readOnly = true)
     public List<TaskDto> getTasks(Long userId, Long projectId) {
         Project project = getProjectById(projectId);
@@ -61,6 +80,9 @@ public class TaskService {
                 .toList();
     }
 
+    /**
+     * Retourne le détail d'une tâche. Accessible à tous les membres.
+     */
     @Transactional(readOnly = true)
     public TaskDto getTask(Long userId, Long projectId, Long taskId) {
         Project project = getProjectById(projectId);
@@ -68,6 +90,15 @@ public class TaskService {
         return convertToDto(getTaskInProject(taskId, project));
     }
 
+    /**
+     * Crée une tâche (ADMINISTRATOR et MEMBER). Trace la création dans l'historique
+     * et notifie l'assigné s'il y en a un.
+     *
+     * @param userId    identifiant de l'auteur
+     * @param projectId identifiant du projet
+     * @param request   données de la tâche à créer
+     * @return tâche créée sous forme de DTO
+     */
     @Transactional
     public TaskDto create(Long userId, Long projectId, TaskRequest request) {
         Project project = getProjectById(projectId);
@@ -89,9 +120,24 @@ public class TaskService {
         historyService.record("assignee", null,
                 assignee != null ? assignee.getUsername() : null, task, author);
 
+        // Notification : à la création, tout assigné est un "nouvel" assigné (ancien = null).
+        if (assignee != null) {
+            notificationService.notifyAssignment(assignee, task);
+        }
+
         return convertToDto(task);
     }
 
+    /**
+     * Modifie une tâche (ADMINISTRATOR et MEMBER). Trace chaque champ modifié
+     * et notifie l'assigné uniquement si l'assignation a changé.
+     *
+     * @param userId    identifiant de l'auteur
+     * @param projectId identifiant du projet
+     * @param taskId    identifiant de la tâche
+     * @param request   nouvelles données de la tâche
+     * @return tâche modifiée sous forme de DTO
+     */
     @Transactional
     public TaskDto update(Long userId, Long projectId, Long taskId, TaskRequest request) {
         Project project = getProjectById(projectId);
@@ -111,6 +157,7 @@ public class TaskService {
         Object oldPriority = task.getPriority();
         Object oldDueDate = task.getDueDate();
         User oldAssignee = task.getAssignee();
+        Long oldAssigneeId = oldAssignee != null ? oldAssignee.getId() : null;
 
         applyFields(task, request, project, assignee);
         taskRepository.save(task);
@@ -124,9 +171,17 @@ public class TaskService {
                 oldAssignee != null ? oldAssignee.getUsername() : null,
                 assignee != null ? assignee.getUsername() : null, task, author);
 
+        // Notification uniquement si un assigné est défini ET qu'il a changé.
+        if (assignee != null && !Objects.equals(oldAssigneeId, assignee.getId())) {
+            notificationService.notifyAssignment(assignee, task);
+        }
+
         return convertToDto(task);
     }
 
+    /**
+     * Supprime une tâche. Réservé aux ADMINISTRATOR.
+     */
     @Transactional
     public void delete(Long userId, Long projectId, Long taskId) {
         Project project = getProjectById(projectId);
@@ -187,12 +242,18 @@ public class TaskService {
         task.setAssignee(assignee);
     }
 
+    /**
+     * Refuse l'action aux observateurs (VIEWER).
+     */
     private void requireCanWrite(ProjectMember actor) {
         if (actor.getRole() == ProjectRole.VIEWER) {
             throw new ForbiddenException("Les observateurs ne peuvent pas modifier les tâches.");
         }
     }
 
+    /**
+     * Retourne l'appartenance de l'utilisateur au projet, ou lève une exception 403/404.
+     */
     private ProjectMember getMembershipOrThrow(Long userId, Project project) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé."));
@@ -200,17 +261,26 @@ public class TaskService {
                 .orElseThrow(() -> new ForbiddenException("Vous n'êtes pas membre de ce projet."));
     }
 
+    /**
+     * Retourne la tâche si elle appartient bien au projet, sinon lève une exception 404.
+     */
     private Task getTaskInProject(Long taskId, Project project) {
         return taskRepository.findById(taskId)
                 .filter(t -> t.getProject().getId().equals(project.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Tâche non trouvée dans ce projet."));
     }
 
+    /**
+     * Retourne le projet ou lève une exception 404.
+     */
     private Project getProjectById(Long projectId) {
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Projet non trouvé."));
     }
 
+    /**
+     * Convertit une entité Task en DTO exposé par l'API.
+     */
     private TaskDto convertToDto(Task task) {
         return new TaskDto(
                 task.getId(),
