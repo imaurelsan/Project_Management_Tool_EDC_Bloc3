@@ -50,9 +50,6 @@ public class NotificationService {
      * @return aucune valeur ; l'e-mail est seulement tenté après l'enregistrement
      */
     public void notifyAssignment(User assignee, Task task) {
-        // DEBUG temporaire : vérifie que la méthode est bien appelée
-        System.out.println(">>> notifyAssignment appelée pour " + assignee.getUsername());
-        
         String message = "La tâche « " + task.getTitle() + " » vous a été assignée.";
         notificationRepository.save(new Notification(assignee, task, message));
 

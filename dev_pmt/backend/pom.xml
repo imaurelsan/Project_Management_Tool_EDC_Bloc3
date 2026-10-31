@@ -99,6 +99,27 @@
 
     <build>
         <plugins>
+            <!-- Instrumente les tests et génère le rapport HTML de couverture. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <!--
                 Plugin Spring Boot : permet de lancer l'application (mvnw spring-boot:run)
                 et de créer le JAR exécutable (mvnw package).
@@ -120,5 +141,15 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Profil utilisé par les tests avec la base H2 en mémoire. -->
+        <profile>
+            <id>test</id>
+            <properties>
+                <spring.profiles.active>test</spring.profiles.active>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>
