@@ -107,6 +107,10 @@
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
+                        <phase>process-test-classes</phase>
+                        <configuration>
+                            <propertyName>jacocoArgLine</propertyName>
+                        </configuration>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
@@ -120,6 +124,14 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Transmet l'agent JaCoCo uniquement à Surefire, jamais au lancement Spring Boot. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>${jacocoArgLine}</argLine>
+                </configuration>
+            </plugin>
             <!--
                 Plugin Spring Boot : permet de lancer l'application (mvnw spring-boot:run)
                 et de créer le JAR exécutable (mvnw package).
@@ -130,6 +142,8 @@
                 <configuration>
                     <!-- Classe contenant la méthode main() de l'application -->
                     <mainClass>com.pmt.pmtbackend.PmtbackendApplication</mainClass>
+                    <!-- Désactive l'argfile optimisé, incompatible avec les chemins Windows contenant des espaces. -->
+                    <optimizedLaunch>false</optimizedLaunch>
                     <!-- Lombok est utilisé à la compilation seulement : on l'exclut du JAR final -->
                     <excludes>
                         <exclude>
