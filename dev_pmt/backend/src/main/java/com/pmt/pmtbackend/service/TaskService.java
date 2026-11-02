@@ -73,9 +73,23 @@ public class TaskService {
      */
     @Transactional(readOnly = true)
     public List<TaskDto> getTasks(Long userId, Long projectId) {
+        return getTasks(userId, projectId, null);
+    }
+
+    /**
+     * Liste les tâches d'un projet avec un filtre de statut facultatif.
+     *
+     * @param userId identifiant du lecteur
+     * @param projectId identifiant du projet
+     * @param status statut demandé, ou null pour tous les statuts
+     * @return tâches accessibles
+     */
+    @Transactional(readOnly = true)
+    public List<TaskDto> getTasks(Long userId, Long projectId, com.pmt.pmtbackend.model.entity.TaskStatus status) {
         Project project = getProjectById(projectId);
         getMembershipOrThrow(userId, project);
         return taskRepository.findByProject(project).stream()
+                .filter(task -> status == null || task.getStatus() == status)
                 .map(this::convertToDto)
                 .toList();
     }

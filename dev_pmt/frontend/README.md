@@ -1,59 +1,41 @@
-# Frontend
+# Frontend PMT
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.2.
+Interface faite avec Angular 22. Elle appelle l'API du backend sur `http://localhost:8080/api`, donc le backend doit être lancé pour que l'application fonctionne.
 
-## Development server
+## Installation et commandes
 
-To start a local development server, run:
+Ces commandes se lancent depuis le dossier `frontend` :
 
-```bash
-ng serve
+```powershell
+npm install
+npm start
+npm run build
+npm run test:ci
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- `npm start` lance l'application sur http://localhost:4200.
+- `npm run build` génère la version finale dans `dist\frontend`.
+- `npm run test:ci` lance les tests une seule fois et crée un rapport de couverture. Ouvrir le fichier `index.html` du dossier `coverage` pour le lire.
 
-## Code scaffolding
+## Structure du code
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```text
+src/app/
+├── components/   les pages et les formulaires
+├── guards/       protection des pages réservées aux utilisateurs connectés
+├── http/         ajoute l'en-tête X-User-Id à chaque requête
+├── services/     appels au backend et gestion de la session
+└── models.ts     types utilisés dans toute l'application
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Pages de l'application
 
-```bash
-ng generate --help
-```
+| Route | Qui y accède | Contenu |
+|---|---|---|
+| `/login` | Tout le monde | Connexion |
+| `/register` | Tout le monde | Inscription |
+| `/projects` | Utilisateur connecté | Liste des projets et création d'un projet |
+| `/projects/:id` | Utilisateur connecté | Membres, rôles, tâches et tableau de bord |
+| `/projects/:projectId/tasks/:taskId` | Utilisateur connecté | Détail d'une tâche et son historique |
 
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+La barre de navigation affiche le nom de l'utilisateur et la cloche de notifications. L'identifiant de l'utilisateur est gardé dans la session du navigateur, et le frontend l'ajoute à chaque requête vers le backend.

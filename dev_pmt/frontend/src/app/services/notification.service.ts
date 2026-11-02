@@ -10,4 +10,8 @@ export class NotificationService {
   list(): Observable<Notification[]> {
     return this.http.get<Notification[]>(`${environment.apiUrl}/notifications`);
   }
+
+  markAsRead(id: number): Observable<void> {
+    return this.http.patch<void>(`${environment.apiUrl}/notifications/${id}/read`, {});
+  }
 }

@@ -18,4 +18,21 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * "User" correspond au champ "user" de l'entité Notification.
      */
     List<Notification> findByUserOrderByCreatedAtDesc(User user);
+
+    /**
+     * Retourne les notifications d'un utilisateur par identifiant.
+     *
+     * @param userId identifiant du destinataire
+     * @return notifications triées par date décroissante
+     */
+    List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    /**
+     * Recherche une notification en vérifiant directement son destinataire.
+     *
+     * @param id identifiant de la notification
+     * @param userId identifiant du destinataire
+     * @return notification appartenant à l'utilisateur si elle existe
+     */
+    java.util.Optional<Notification> findByIdAndUserId(Long id, Long userId);
 }

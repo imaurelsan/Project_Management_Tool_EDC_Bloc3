@@ -19,12 +19,18 @@ export class ProjectService {
   updateMemberRole(projectId: number, userId: number, role: ProjectRole): Observable<Member> {
     return this.http.put<Member>(`${this.baseUrl}/${projectId}/members/${userId}`, { role });
   }
-  tasks(projectId: number): Observable<Task[]> { return this.http.get<Task[]>(`${this.baseUrl}/${projectId}/tasks`); }
+  tasks(projectId: number, status?: Task['status']): Observable<Task[]> {
+    const url = `${this.baseUrl}/${projectId}/tasks`;
+    return this.http.get<Task[]>(status ? `${url}?status=${status}` : url);
+  }
   createTask(projectId: number, request: TaskRequest): Observable<Task> {
     return this.http.post<Task>(`${this.baseUrl}/${projectId}/tasks`, request);
   }
   updateTask(projectId: number, taskId: number, request: TaskRequest): Observable<Task> {
     return this.http.put<Task>(`${this.baseUrl}/${projectId}/tasks/${taskId}`, request);
+  }
+  getTask(projectId: number, taskId: number): Observable<Task> {
+    return this.http.get<Task>(`${this.baseUrl}/${projectId}/tasks/${taskId}`);
   }
   deleteTask(projectId: number, taskId: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${projectId}/tasks/${taskId}`);

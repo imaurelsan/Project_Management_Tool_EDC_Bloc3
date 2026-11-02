@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.pmt.pmtbackend.model.entity.TaskStatus;
 
 /**
  * Routes REST des tâches d'un projet.
@@ -25,8 +26,9 @@ public class TaskController {
 
     @GetMapping
     public List<TaskDto> getTasks(@RequestHeader("X-User-Id") Long userId,
-                                  @PathVariable Long projectId) {
-        return taskService.getTasks(userId, projectId);
+                                  @PathVariable Long projectId,
+                                  @RequestParam(required = false) TaskStatus status) {
+        return taskService.getTasks(userId, projectId, status);
     }
 
     @GetMapping("/{taskId}")

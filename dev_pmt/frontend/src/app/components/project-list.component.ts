@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { ReactiveFormsModule, Validators, FormBuilder } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ProjectService } from '../services/project.service';
@@ -16,9 +16,10 @@ import { apiErrorMessage } from '../shared/api-error';
         <input placeholder="Description" formControlName="description">
         <button type="submit">Créer</button>
       </form>
-      @if (error) { <p class="error">{{ error }}</p> }
+      @if (loading()) { <p>Chargement des projets...</p> }
+      @if (error()) { <p class="error">{{ error() }}</p> }
       <div class="grid">
-        @for (project of projects; track project.id) {
+        @for (project of projects(); track project.id) {
           <a class="card project" [routerLink]="['/projects', project.id]">
             <h2>{{ project.name }}</h2><p>{{ project.description }}</p>
           </a>
@@ -32,16 +33,23 @@ export class ProjectListComponent implements OnInit {
   readonly form = inject(FormBuilder).nonNullable.group({
     name: ['', Validators.required], description: [''],
   });
-  projects: Project[] = [];
-  error = '';
+  projects = signal<Project[]>([]);
+  loading = signal(false);
+  error = signal('');
 
   ngOnInit(): void { this.load(); }
-  load(): void { this.service.list().subscribe({ next: projects => this.projects = projects, error: e => this.error = apiErrorMessage(e) }); }
+  load(): void {
+    this.loading.set(true);
+    this.service.list().subscribe({
+      next: projects => { this.projects.set(projects); this.loading.set(false); },
+      error: e => { this.error.set(apiErrorMessage(e)); this.loading.set(false); },
+    });
+  }
   create(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.service.create(this.form.getRawValue()).subscribe({
-      next: project => { this.projects = [...this.projects, project]; this.form.reset(); },
-      error: e => this.error = apiErrorMessage(e),
+      next: project => { this.projects.update(projects => [...projects, project]); this.form.reset(); },
+      error: e => this.error.set(apiErrorMessage(e)),
     });
   }
 }

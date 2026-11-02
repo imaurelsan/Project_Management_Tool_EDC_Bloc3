@@ -1,7 +1,24 @@
 <header class="topbar">
   <a routerLink="/projects" class="brand">PMT</a>
-  @if (user) {
-    <span>{{ user.username }}</span>
+  @if (user()) {
+    <span>{{ user()!.username }}</span>
+    <div class="notification-menu">
+      <button type="button" (click)="toggleNotifications()">🔔 {{ unreadCount() }}</button>
+      @if (notificationsOpen()) {
+        <div class="notification-panel card">
+          @if (loadingNotifications()) { <p>Chargement...</p> }
+          @if (notificationError()) { <p class="error">{{ notificationError() }}</p> }
+          @for (notification of notifications(); track notification.id) {
+            <button type="button" class="notification" [class.unread]="!notification.read"
+                    (click)="markNotificationAsRead(notification)">
+              {{ notification.message }}
+            </button>
+          } @empty {
+            @if (!loadingNotifications()) { <p>Aucune notification.</p> }
+          }
+        </div>
+      }
+    </div>
     <button type="button" (click)="logout()">Déconnexion</button>
   }
 </header>

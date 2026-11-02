@@ -53,6 +53,7 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   taskId: number;
+  projectId: number;
   userId: number;
 }
 

@@ -3,14 +3,17 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { vi } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
+import { signal } from '@angular/core';
 import { App } from './app';
 import { AuthService } from './services/auth.service';
+import { routes } from './app.routes';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([]), provideHttpClient()],
+      providers: [provideRouter(routes), provideHttpClient()],
     })
       .compileComponents();
   });
@@ -31,13 +34,17 @@ describe('App', () => {
   it('déconnecte l’utilisateur et revient à la connexion', () => {
     const logout = vi.fn();
     const navigate = vi.fn();
+    const userChanges = new BehaviorSubject(null);
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [App],
       providers: [
-        provideRouter([]),
+        provideRouter(routes),
         provideHttpClient(),
-        { provide: AuthService, useValue: { currentUser: () => null, logout } },
+        { provide: AuthService, useValue: {
+          currentUser: () => null, currentUserSignal: signal(null),
+          userChanges$: userChanges.asObservable(), logout,
+        } },
       ],
     });
     const router = TestBed.inject(Router);

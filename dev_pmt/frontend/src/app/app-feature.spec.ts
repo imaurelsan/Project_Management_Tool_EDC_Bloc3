@@ -4,6 +4,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
+import { signal } from '@angular/core';
 import { vi } from 'vitest';
 import { AuthService } from './services/auth.service';
 import { ProjectService } from './services/project.service';
@@ -16,9 +18,12 @@ import { RegisterComponent } from './components/register.component';
 import { ProjectListComponent } from './components/project-list.component';
 import { ProjectDetailComponent } from './components/project-detail.component';
 import { TaskFormComponent } from './components/task-form.component';
+import { TaskDetailComponent } from './components/task-detail.component';
+import { App } from './app';
+import { routes } from './app.routes';
 import { environment } from '../environments/environment';
 import { apiErrorMessage } from './shared/api-error';
-import { Member, Project, Task, User } from './models';
+import { Member, Notification, Project, Task, User } from './models';
 
 const user: User = { id: 1, username: 'Alice', email: 'alice@example.com' };
 const project: Project = { id: 1, name: 'Projet', description: 'Desc', startDate: null, creatorId: 1, creatorUsername: 'Alice' };
@@ -75,8 +80,11 @@ describe('Services HTTP', () => {
   });
 
   it('appelle le service des notifications', () => {
-    TestBed.inject(NotificationService).list().subscribe();
+    const service = TestBed.inject(NotificationService);
+    service.list().subscribe();
     http.expectOne(`${environment.apiUrl}/notifications`).flush([]);
+    service.markAsRead(4).subscribe();
+    http.expectOne({ method: 'PATCH', url: `${environment.apiUrl}/notifications/4/read` }).flush(null);
   });
 
   it('inscrit un utilisateur via UserService', () => {
@@ -175,13 +183,13 @@ describe('Composants projets et tâches', () => {
     TestBed.configureTestingModule({ imports: [ProjectListComponent], providers: [{ provide: ProjectService, useValue: service }] });
     const component = TestBed.createComponent(ProjectListComponent).componentInstance;
     component.ngOnInit();
-    expect(component.projects).toHaveLength(1);
+    expect(component.projects()).toHaveLength(1);
     component.form.setValue({ name: 'Nouveau', description: '' });
     component.create();
-    expect(component.projects).toHaveLength(2);
+    expect(component.projects()).toHaveLength(2);
     service.list.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     component.load();
-    expect(component.error).toContain('introuvable');
+    expect(component.error()).toContain('introuvable');
   });
 
   it('affiche un détail et réserve l’ajout de membre à un administrateur', () => {
@@ -197,12 +205,33 @@ describe('Composants projets et tâches', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
       ],
     });
+
     const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
     component.ngOnInit();
-    expect(component.isAdmin).toBe(true);
+    expect(component.isAdmin()).toBe(true);
     component.memberForm.setValue({ email: 'bob@example.com', role: 'MEMBER' });
     component.addMember();
     expect(service.addMember).toHaveBeenCalled();
+  });
+
+  it('calcule le tableau de bord et change le rôle d’un membre', () => {
+    const service = {
+      get: vi.fn(() => of(project)), members: vi.fn(() => of([member])), tasks: vi.fn(() => of([task])),
+      updateMemberRole: vi.fn(() => of({ ...member, role: 'MEMBER' })),
+    };
+    TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: AuthService, useValue: { currentUser: () => user } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
+    component.ngOnInit();
+    expect(component.count('A_FAIRE')).toBe(1);
+    component.changeRole(member, { target: { value: 'MEMBER' } } as unknown as Event);
+    expect(service.updateMemberRole).toHaveBeenCalledWith(1, 1, 'MEMBER');
   });
 
   it('valide, crée et modifie une tâche', () => {
@@ -219,5 +248,151 @@ describe('Composants projets et tâches', () => {
     component.task = task;
     component.submit();
     expect(service.updateTask).toHaveBeenCalled();
+  });
+
+  it('charge le détail d’une tâche et son historique', () => {
+    const service = {
+      getTask: vi.fn(() => of(task)),
+      history: vi.fn(() => of([{ id: 1, modifiedField: 'status', oldValue: 'A_FAIRE', newValue: 'FAIT',
+        modifiedDate: '2026-01-01', modifiedBy: 'Alice' }])),
+    };
+    TestBed.configureTestingModule({
+      imports: [TaskDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: (key: string) => key === 'projectId' ? '1' : '2' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(TaskDetailComponent).componentInstance;
+    component.ngOnInit();
+    expect(component.task()).toEqual(task);
+    expect(component.history()).toHaveLength(1);
+  });
+
+  it('arrête le chargement du détail de tâche en cas d’erreur', () => {
+    const service = {
+      getTask: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404 }))),
+      history: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404 }))),
+    };
+    TestBed.configureTestingModule({
+      imports: [TaskDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '2' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(TaskDetailComponent).componentInstance;
+    component.ngOnInit();
+    expect(component.loading()).toBe(false);
+    expect(component.historyLoading()).toBe(false);
+    expect(component.error()).toContain('introuvable');
+  });
+
+  it('arrête les deux chargements quand les identifiants sont invalides', () => {
+    const service = { getTask: vi.fn(), history: vi.fn() };
+    TestBed.configureTestingModule({
+      imports: [TaskDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '0' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(TaskDetailComponent).componentInstance;
+    component.ngOnInit();
+    expect(component.loading()).toBe(false);
+    expect(component.historyLoading()).toBe(false);
+    expect(service.getTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('Notifications dans la racine', () => {
+  const notification: Notification = {
+    id: 5, message: 'Tâche assignée', read: false, createdAt: '', taskId: 5, projectId: 2, userId: 1,
+  };
+
+  it('recharge les notifications après connexion et les vide à la déconnexion', async () => {
+    const userChanges = new BehaviorSubject<User | null>(null);
+    const auth = {
+      currentUser: vi.fn(() => null),
+      currentUserSignal: signal<User | null>(null),
+      userChanges$: userChanges.asObservable(),
+      logout: vi.fn(() => userChanges.next(null)),
+    };
+    const service = { list: vi.fn(() => of([notification])), markAsRead: vi.fn(() => of(void 0)) };
+    const router = { navigate: vi.fn() };
+    TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        { provide: AuthService, useValue: auth },
+        { provide: NotificationService, useValue: service },
+        provideRouter(routes),
+      ],
+    });
+    const fixture = TestBed.createComponent(App);
+    userChanges.next(user);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(service.list).toHaveBeenCalled();
+    expect(fixture.componentInstance.notifications()).toEqual([notification]);
+    fixture.componentInstance.logout();
+    expect(fixture.componentInstance.notifications()).toEqual([]);
+    fixture.destroy();
+  });
+
+  it('marque une notification comme lue et recalcule le compteur', () => {
+    const userChanges = new BehaviorSubject<User | null>(user);
+    const auth = {
+      currentUser: vi.fn(() => user),
+      currentUserSignal: signal<User | null>(user),
+      userChanges$: userChanges.asObservable(),
+      logout: vi.fn(),
+    };
+    const service = { list: vi.fn(() => of([])), markAsRead: vi.fn(() => of(void 0)) };
+    const router = { navigate: vi.fn() };
+    TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        { provide: AuthService, useValue: auth },
+        { provide: NotificationService, useValue: service },
+        { provide: Router, useValue: router },
+        { provide: ActivatedRoute, useValue: {} },
+      ],
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.componentInstance.notifications.set([{ ...notification }]);
+    expect(fixture.componentInstance.unreadCount()).toBe(1);
+    fixture.componentInstance.markNotificationAsRead(fixture.componentInstance.notifications()[0]);
+    expect(service.markAsRead).toHaveBeenCalledWith(notification.id);
+    expect(fixture.componentInstance.unreadCount()).toBe(0);
+    expect(router.navigate).toHaveBeenCalledWith(['/projects', 2, 'tasks', 5]);
+    fixture.destroy();
+  });
+
+  it('navigue pas si le marquage de notification échoue', () => {
+    const auth = {
+      currentUser: vi.fn(() => user),
+      currentUserSignal: signal<User | null>(user),
+      userChanges$: of(user),
+      logout: vi.fn(),
+    };
+    const router = { navigate: vi.fn() };
+    const service = {
+      list: vi.fn(() => of([])),
+      markAsRead: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 403 }))),
+    };
+    TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        { provide: AuthService, useValue: auth },
+        { provide: NotificationService, useValue: service },
+        { provide: Router, useValue: router },
+        { provide: ActivatedRoute, useValue: {} },
+      ],
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.componentInstance.notifications.set([{ ...notification }]);
+    fixture.componentInstance.markNotificationAsRead(fixture.componentInstance.notifications()[0]);
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.notificationError()).toContain('droits');
+    fixture.destroy();
   });
 });
