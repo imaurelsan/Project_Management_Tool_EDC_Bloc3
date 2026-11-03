@@ -27,10 +27,10 @@ yarn-error.log*
 .project
 .settings/
 
-# # Secrets et variables d'environnement locales
-# .env
-# *.env
-!.env.example
+# Secrets et variables d'environnement locales
+# Fichier .env de démonstration (mot de passe de test, versionné volontairement)
+*.env
+!dev_pmt/.env
 
 # macOS
 .DS_Store
