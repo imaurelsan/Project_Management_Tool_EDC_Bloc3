@@ -5,7 +5,7 @@ services:
     container_name: pmt_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?ajouter MYSQL_ROOT_PASSWORD dans .env local}
       MYSQL_DATABASE: pmt_db
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}

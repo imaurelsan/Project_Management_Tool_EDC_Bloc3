@@ -31,6 +31,7 @@ yarn-error.log*
 # Fichier .env de démonstration (mot de passe de test, versionné volontairement)
 *.env
 !dev_pmt/.env
+dev_pmt/.env.local
 
 # macOS
 .DS_Store
