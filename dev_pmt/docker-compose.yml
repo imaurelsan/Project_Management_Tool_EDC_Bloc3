@@ -1,17 +1,49 @@
 services:
-  mysql:
+  db:
+    # MySQL exécute init.sql au premier démarrage du volume.
     build: ./database
     container_name: pmt_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: pmt_demo_2026
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: pmt_db
-      MYSQL_USER: ${DB_USERNAME:-pmt_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-pmt_demo_2026}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
       - pmt_mysql_data:/var/lib/mysql
+    healthcheck:
+      # Le backend attend que MySQL accepte effectivement les connexions.
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    # Le backend est compilé puis lancé dans son propre conteneur.
+    build: ./backend
+    container_name: pmt_backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/pmt_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  frontend:
+    # Le frontend Angular compilé est servi par nginx.
+    build: ./frontend
+    container_name: pmt_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
 
 volumes:
   pmt_mysql_data:
