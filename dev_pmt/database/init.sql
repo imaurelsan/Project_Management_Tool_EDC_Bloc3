@@ -4,6 +4,8 @@ SET NAMES utf8mb4;
 -- Exécuté automatiquement par MySQL au premier démarrage d'un volume Docker neuf.
 -- Les noms de tables et de colonnes doivent correspondre exactement aux entités JPA
 -- (le backend démarre en mode ddl-auto=validate).
+-- L'utilisateur MySQL applicatif est créé par docker-compose (MYSQL_USER / MYSQL_PASSWORD) :
+-- ce script ne gère que le schéma et les données de démonstration.
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS history;
@@ -13,11 +15,6 @@ DROP TABLE IF EXISTS project_member;
 DROP TABLE IF EXISTS project;
 DROP TABLE IF EXISTS `user`;
 SET FOREIGN_KEY_CHECKS = 1;
-
--- Compte applicatif utilisé par Docker et le backend local.
-CREATE USER IF NOT EXISTS 'pmt_user'@'%' IDENTIFIED BY 'pmt_demo_2026';
-GRANT ALL PRIVILEGES ON pmt_db.* TO 'pmt_user'@'%';
-FLUSH PRIVILEGES;
 
 -- Utilisateurs (entité User)
 CREATE TABLE `user` (
@@ -91,7 +88,6 @@ CREATE TABLE history (
     CONSTRAINT fk_history_task FOREIGN KEY (task_id) REFERENCES task (id),
     CONSTRAINT fk_history_modified_by FOREIGN KEY (modified_by) REFERENCES `user` (id)
 );
-
 
 -- ===== Données de test pour la démonstration =====
 -- Mots de passe en clair : uniquement pour la démonstration, jamais en production.

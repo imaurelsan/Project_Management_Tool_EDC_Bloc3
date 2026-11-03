@@ -1,21 +1,21 @@
 # Backend PMT
 
-API REST faite avec Spring Boot 3.3.5, Java 21, Maven, JPA/Hibernate et MySQL.
+API REST faite avec Spring Boot 3.3.5, Java 17, Maven, JPA/Hibernate et MySQL.
 
 ## Configuration
 
-Le backend lit ces variables d'environnement :
+En Compose, les variables sont définies dans `dev_pmt/.env` :
 
-```powershell
-$env:DB_URL="jdbc:mysql://localhost:3306/pmt_db"
-$env:DB_USERNAME="pmt_user"
-$env:DB_PASSWORD="votre_mot_de_passe"
-$env:MAIL_HOST="localhost"
-$env:MAIL_PORT="1025"
-$env:MAIL_FROM="pmt@localhost"
+```text
+MYSQL_ROOT_PASSWORD=...
+MYSQL_DATABASE=pmt_db
+MYSQL_USER=pmt_user
+MYSQL_PASSWORD=...
+SPRING_DATASOURCE_USERNAME=pmt_user
+SPRING_DATASOURCE_PASSWORD=...
 ```
 
-`DB_URL` et `DB_USERNAME` ont une valeur par défaut dans `application.properties`. `DB_PASSWORD` doit être défini pour lancer le backend en développement. Les variables `MAIL_*` servent à l'envoi des e-mails d'assignation.
+Le backend utilise `SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/pmt_db`, ainsi que les variables `SPRING_DATASOURCE_USERNAME` et `SPRING_DATASOURCE_PASSWORD`. Les variables `MAIL_*` servent à l'envoi des e-mails d'assignation.
 
 Il n'y a pas de jeton JWT dans le code actuel. L'identifiant de l'utilisateur connecté est envoyé par le frontend dans l'en-tête `X-User-Id`, et le backend s'en sert pour vérifier les droits.
 
@@ -28,9 +28,17 @@ GRANT ALL PRIVILEGES ON pmt_db.* TO 'pmt_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-La base doit exister avant de démarrer le backend, car Hibernate est réglé sur `ddl-auto=validate` : il vérifie les tables mais ne les crée pas.
+Avec Compose, le service `db` est construit depuis `database/Dockerfile` et exécute `database/init.sql`. Hibernate reste réglé sur `ddl-auto=validate` : il vérifie les tables mais ne les crée pas.
 
 ## Compiler, lancer et tester
+
+Depuis `dev_pmt`, lancer l'ensemble :
+
+```powershell
+podman compose down -v
+podman compose up --build -d
+podman compose logs backend --tail=50
+```
 
 Ces commandes se lancent depuis le dossier `backend` :
 

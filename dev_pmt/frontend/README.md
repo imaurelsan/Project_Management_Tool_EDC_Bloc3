@@ -1,6 +1,6 @@
 # Frontend PMT
 
-Interface faite avec Angular 22. Elle appelle l'API du backend sur `http://localhost:8080/api`, donc le backend doit être lancé pour que l'application fonctionne.
+Interface faite avec Angular 22. En conteneur, elle appelle l'API via le chemin relatif `/api`, proxyfié par nginx vers le service backend.
 
 ## Installation et commandes
 
@@ -16,6 +16,7 @@ npm run test:ci
 - `npm start` lance l'application sur http://localhost:4200.
 - `npm run build` génère la version finale dans `dist\frontend`.
 - `npm run test:ci` lance les tests une seule fois et crée un rapport de couverture. Ouvrir le fichier `index.html` du dossier `coverage` pour le lire.
+- Avec Compose, l'application est disponible sur http://localhost:4200 et l'API sur http://localhost:8080/api.
 
 ## Structure du code
 

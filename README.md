@@ -36,38 +36,33 @@ Le détail de chaque partie est dans `backend/README.md` et `frontend/README.md`
 
 Les étapes sont à faire dans cet ordre.
 
-**1. Créer la base MySQL.** Dans le client MySQL :
+**1. Configurer l'environnement Docker.** Depuis `dev_pmt`, créer localement le fichier `.env` (il ne doit pas être versionné) :
 
-```sql
-CREATE DATABASE pmt_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'pmt_user'@'localhost' IDENTIFIED BY 'votre_mot_de_passe';
-GRANT ALL PRIVILEGES ON pmt_db.* TO 'pmt_user'@'localhost';
-FLUSH PRIVILEGES;
+```text
+MYSQL_ROOT_PASSWORD=...
+MYSQL_DATABASE=pmt_db
+MYSQL_USER=pmt_user
+MYSQL_PASSWORD=...
+SPRING_DATASOURCE_USERNAME=pmt_user
+SPRING_DATASOURCE_PASSWORD=...
 ```
 
-**2. Définir les variables d'environnement** dans le terminal où on lancera le backend :
+Le service `db` est construit depuis `database/Dockerfile` et initialise MySQL avec `database/init.sql`.
+
+**2. Lancer les trois services** :
 
 ```powershell
-$env:DB_URL="jdbc:mysql://localhost:3306/pmt_db"
-$env:DB_USERNAME="pmt_user"
-$env:DB_PASSWORD="votre_mot_de_passe"
+podman compose down -v
+podman compose up --build -d
 ```
 
-**3. Compiler et lancer le backend** (il écoute sur http://localhost:8080) :
+**3. Vérifier les conteneurs** :
 
 ```powershell
-cd backend
-.\mvnw.cmd clean package -DskipTests
-java -jar .\target\pmtbackend-0.0.1-SNAPSHOT.jar
+podman compose ps
 ```
 
-**4. Lancer le frontend** dans un deuxième terminal :
-
-```powershell
-cd frontend
-npm install
-npm start
-```
+**4. Consulter l'API** sur http://localhost:8080/api.
 
 **5. Ouvrir l'application** sur http://localhost:4200.
 
@@ -86,7 +81,7 @@ npm start
 
 - **`spring-boot:run` ne marche pas** : le chemin du projet contient des espaces (Windows). On passe donc par `mvnw.cmd clean package` puis `java -jar`, comme indiqué plus haut.
 - **Le port 8080 ou 4200 est déjà pris** : un ancien processus tourne encore. Le fermer avec Ctrl+C dans son terminal, ou redémarrer le terminal.
-- **Erreur au démarrage du backend sur la base** : vérifier que `pmt_db` existe, et que `DB_USERNAME` et `DB_PASSWORD` sont définis dans le même terminal que celui qui lance le backend.
+- **Erreur au démarrage du backend sur la base** : vérifier les variables `MYSQL_*` et `SPRING_DATASOURCE_*` dans `dev_pmt\.env`, puis recréer le volume avec `podman compose down -v`.
 - **L'interface reste bloquée ou affiche une vieille version** : arrêter `npm start`, supprimer le dossier `frontend\.angular`, relancer, puis recharger la page avec Ctrl+F5.
 - **Une action échoue avec « Une erreur est survenue »** : ouvrir la console du navigateur (F12). Un message CORS signifie que le backend n'a pas été recompilé et relancé après une modification.
 - **Les accents sont cassés dans la console MySQL** : taper `SET NAMES utf8mb4;` avant les requêtes.
