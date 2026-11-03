@@ -6,6 +6,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: pmt_demo_2026
       MYSQL_DATABASE: pmt_db
+      MYSQL_USER: ${DB_USERNAME:-pmt_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-pmt_demo_2026}
     ports:
       - "3306:3306"
     volumes:

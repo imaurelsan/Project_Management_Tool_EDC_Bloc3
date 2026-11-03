@@ -14,13 +14,18 @@ DROP TABLE IF EXISTS project;
 DROP TABLE IF EXISTS `user`;
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- Compte applicatif utilisé par Docker et le backend local.
+CREATE USER IF NOT EXISTS 'pmt_user'@'%' IDENTIFIED BY 'pmt_demo_2026';
+GRANT ALL PRIVILEGES ON pmt_db.* TO 'pmt_user'@'%';
+FLUSH PRIVILEGES;
+
 -- Utilisateurs (entité User)
 CREATE TABLE `user` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
 
 -- Projets (entité Project) : le créateur est porté par owner_id
@@ -28,8 +33,8 @@ CREATE TABLE project (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NULL,
     owner_id BIGINT NOT NULL,
     CONSTRAINT fk_project_owner FOREIGN KEY (owner_id) REFERENCES `user` (id)
 );
@@ -37,8 +42,8 @@ CREATE TABLE project (
 -- Appartenance aux projets (entité ProjectMember) : un seul couple projet/utilisateur
 CREATE TABLE project_member (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    role VARCHAR(50) NOT NULL,
-    joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    role VARCHAR(255) NOT NULL,
+    joined_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     project_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     CONSTRAINT uk_project_member UNIQUE (project_id, user_id),
@@ -51,11 +56,11 @@ CREATE TABLE task (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(150) NOT NULL,
     description TEXT,
-    status VARCHAR(50) NOT NULL,
-    priority VARCHAR(50) NOT NULL,
+    status VARCHAR(255) NOT NULL,
+    priority VARCHAR(255) NOT NULL,
     due_date DATE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NULL,
     project_id BIGINT NOT NULL,
     assignee_id BIGINT NULL,
     CONSTRAINT fk_task_project FOREIGN KEY (project_id) REFERENCES project (id),
@@ -67,7 +72,7 @@ CREATE TABLE notification (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     message TEXT NOT NULL,
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     user_id BIGINT NOT NULL,
     task_id BIGINT NOT NULL,
     CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES `user` (id),
@@ -77,9 +82,9 @@ CREATE TABLE notification (
 -- Historique (entité History) : modified_date en DATETIME(6) pour LocalDateTime
 CREATE TABLE history (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    modified_field VARCHAR(100) NOT NULL,
-    old_value VARCHAR(500),
-    new_value VARCHAR(500),
+    modified_field VARCHAR(255) NOT NULL,
+    old_value VARCHAR(255),
+    new_value VARCHAR(255),
     modified_date DATETIME(6) NULL,
     task_id BIGINT NOT NULL,
     modified_by BIGINT NOT NULL,
