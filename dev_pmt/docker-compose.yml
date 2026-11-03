@@ -4,7 +4,7 @@ services:
     container_name: pmt_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: mon_mot_2_p@sse_PMT
+      MYSQL_ROOT_PASSWORD: pmt_demo_2026
       MYSQL_DATABASE: pmt_db
     ports:
       - "3306:3306"
