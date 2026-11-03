@@ -175,14 +175,36 @@ describe('Composants de formulaires', () => {
     expect(register).toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
   });
+
+  // Vérifie que le formulaire d’inscription refuse les champs incomplets.
+  it('refuse une inscription invalide', () => {
+    const register = vi.fn(() => of(user));
+    setup({ register });
+    const component = TestBed.createComponent(RegisterComponent).componentInstance;
+    component.submit();
+    expect(register).not.toHaveBeenCalled();
+    expect(component.form.touched).toBe(true);
+  });
+
+  // Vérifie que le serveur peut refuser l’inscription avec un message lisible.
+  it('affiche l’erreur d’inscription', () => {
+    const register = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409 })));
+    setup({ register });
+    const component = TestBed.createComponent(RegisterComponent).componentInstance;
+    component.form.setValue({ username: 'Alice', email: user.email, password: 'password' });
+    component.submit();
+    expect(component.error).toContain('existe');
+  });
 });
 
 describe('Composants projets et tâches', () => {
   it('charge et crée un projet, y compris les erreurs', () => {
     const service = { list: vi.fn(() => of([project])), create: vi.fn(() => of({ ...project, id: 2 })) };
-    TestBed.configureTestingModule({ imports: [ProjectListComponent], providers: [{ provide: ProjectService, useValue: service }] });
-    const component = TestBed.createComponent(ProjectListComponent).componentInstance;
+    TestBed.configureTestingModule({ imports: [ProjectListComponent], providers: [{ provide: ProjectService, useValue: service }, provideRouter([])] });
+    const fixture = TestBed.createComponent(ProjectListComponent);
+    const component = fixture.componentInstance;
     component.ngOnInit();
+    fixture.detectChanges();
     expect(component.projects()).toHaveLength(1);
     component.form.setValue({ name: 'Nouveau', description: '' });
     component.create();
@@ -190,6 +212,26 @@ describe('Composants projets et tâches', () => {
     service.list.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     component.load();
     expect(component.error()).toContain('introuvable');
+  });
+
+  // Vérifie que le formulaire de projet invalide ne déclenche aucun appel HTTP.
+  it('refuse la création d’un projet sans nom', () => {
+    const service = { list: vi.fn(() => of([])), create: vi.fn(() => of(project)) };
+    TestBed.configureTestingModule({ imports: [ProjectListComponent], providers: [{ provide: ProjectService, useValue: service }] });
+    const component = TestBed.createComponent(ProjectListComponent).componentInstance;
+    component.create();
+    expect(service.create).not.toHaveBeenCalled();
+    expect(component.form.touched).toBe(true);
+  });
+
+  // Vérifie que l’erreur de création est affichée et que le chargement est terminé.
+  it('gère une erreur lors de la création d’un projet', () => {
+    const service = { list: vi.fn(() => of([])), create: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 403 }))) };
+    TestBed.configureTestingModule({ imports: [ProjectListComponent], providers: [{ provide: ProjectService, useValue: service }] });
+    const component = TestBed.createComponent(ProjectListComponent).componentInstance;
+    component.form.setValue({ name: 'Projet', description: '' });
+    component.create();
+    expect(component.error()).toContain('droits');
   });
 
   it('affiche un détail et réserve l’ajout de membre à un administrateur', () => {
@@ -206,8 +248,10 @@ describe('Composants projets et tâches', () => {
       ],
     });
 
-    const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
+    const fixture = TestBed.createComponent(ProjectDetailComponent);
+    const component = fixture.componentInstance;
     component.ngOnInit();
+    fixture.detectChanges();
     expect(component.isAdmin()).toBe(true);
     component.memberForm.setValue({ email: 'bob@example.com', role: 'MEMBER' });
     component.addMember();
@@ -227,11 +271,126 @@ describe('Composants projets et tâches', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
       ],
     });
-    const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
+    const fixture = TestBed.createComponent(ProjectDetailComponent);
+    const component = fixture.componentInstance;
     component.ngOnInit();
+    fixture.detectChanges();
     expect(component.count('A_FAIRE')).toBe(1);
     component.changeRole(member, { target: { value: 'MEMBER' } } as unknown as Event);
     expect(service.updateMemberRole).toHaveBeenCalledWith(1, 1, 'MEMBER');
+  });
+
+  // Vérifie les états invalides et en lecture seule du détail de projet.
+  it('refuse un identifiant de projet invalide et distingue un observateur', () => {
+    const service = { get: vi.fn(), members: vi.fn(), tasks: vi.fn() };
+    TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: AuthService, useValue: { currentUser: () => user } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '0' } } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ProjectDetailComponent);
+    const component = fixture.componentInstance;
+    component.ngOnInit();
+    fixture.detectChanges();
+    expect(component.error()).toContain('invalide');
+    expect(service.get).not.toHaveBeenCalled();
+  });
+
+  // Vérifie les erreurs de chargement des membres et des tâches.
+  it('affiche les erreurs du chargement des membres et tâches', () => {
+    const error = new HttpErrorResponse({ status: 404 });
+    const service = {
+      get: vi.fn(() => of(project)), members: vi.fn(() => throwError(() => error)),
+      tasks: vi.fn(() => throwError(() => error)),
+    };
+    TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: AuthService, useValue: { currentUser: () => user } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ProjectDetailComponent);
+    const component = fixture.componentInstance;
+    component.ngOnInit();
+    fixture.detectChanges();
+    expect(component.error()).toContain('introuvable');
+  });
+
+  // Vérifie la mise à jour locale après création, modification et suppression d’une tâche.
+  it('rafraîchit les tâches après leurs opérations', () => {
+    const service = {
+      deleteTask: vi.fn(() => of(void 0)), get: vi.fn(() => of(project)),
+      members: vi.fn(() => of([member])), tasks: vi.fn(() => of([task])),
+    };
+    TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: AuthService, useValue: { currentUser: () => user } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
+    component.ngOnInit();
+    const updated = { ...task, title: 'Tâche modifiée' };
+    component.saveTask(updated);
+    expect(component.tasks()[0].title).toBe('Tâche modifiée');
+    component.deleteTask(updated);
+    expect(component.tasks()).toEqual([]);
+    expect(service.deleteTask).toHaveBeenCalledWith(1, 2);
+  });
+
+  // Vérifie le filtre de statut et le refus d’une action d’ajout invalide.
+  it('filtre les tâches et valide le formulaire membre', () => {
+    const secondTask = { ...task, id: 3, status: 'FAIT' as const };
+    const service = {
+      get: vi.fn(() => of(project)), members: vi.fn(() => of([member])),
+      tasks: vi.fn(() => of([task, secondTask])), addMember: vi.fn(() => of(member)),
+    };
+    TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: AuthService, useValue: { currentUser: () => user } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
+    component.ngOnInit();
+    component.filterTasks({ target: { value: 'FAIT' } } as unknown as Event);
+    expect(component.tasks().map(item => item.id)).toEqual([3]);
+    component.memberForm.reset({ email: '', role: 'MEMBER' });
+    component.addMember();
+    expect(service.addMember).not.toHaveBeenCalled();
+  });
+
+  // Vérifie que les erreurs d’administration restent visibles à l’utilisateur.
+  it('affiche les erreurs de modification des membres et de suppression', () => {
+    const error = new HttpErrorResponse({ status: 403 });
+    const service = {
+      get: vi.fn(() => of(project)), members: vi.fn(() => of([member])),
+      tasks: vi.fn(() => of([task])), updateMemberRole: vi.fn(() => throwError(() => error)),
+      deleteTask: vi.fn(() => throwError(() => error)),
+    };
+    TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        { provide: ProjectService, useValue: service },
+        { provide: AuthService, useValue: { currentUser: () => user } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+      ],
+    });
+    const component = TestBed.createComponent(ProjectDetailComponent).componentInstance;
+    component.ngOnInit();
+    component.changeRole(member, { target: { value: 'VIEWER' } } as unknown as Event);
+    expect(component.error()).toContain('droits');
+    component.deleteTask(task);
+    expect(component.error()).toContain('droits');
   });
 
   it('valide, crée et modifie une tâche', () => {
@@ -248,6 +407,33 @@ describe('Composants projets et tâches', () => {
     component.task = task;
     component.submit();
     expect(service.updateTask).toHaveBeenCalled();
+  });
+
+  // Vérifie qu’une erreur d’enregistrement laisse le formulaire utilisable.
+  it('affiche une erreur lors de la sauvegarde d’une tâche', () => {
+    const service = { createTask: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 400 }))) };
+    TestBed.configureTestingModule({ imports: [TaskFormComponent], providers: [{ provide: ProjectService, useValue: service }] });
+    const fixture = TestBed.createComponent(TaskFormComponent);
+    const component = fixture.componentInstance;
+    component.projectId = 1;
+    fixture.detectChanges();
+    component.form.controls.title.setValue('Tâche');
+    component.submit();
+    expect(component.saving()).toBe(false);
+    expect(component.error()).toContain('invalide');
+  });
+
+  // Vérifie qu’une modification échouée arrête aussi l’indicateur de sauvegarde.
+  it('gère une erreur lors de la modification d’une tâche', () => {
+    const service = { updateTask: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404 }))) };
+    TestBed.configureTestingModule({ imports: [TaskFormComponent], providers: [{ provide: ProjectService, useValue: service }] });
+    const component = TestBed.createComponent(TaskFormComponent).componentInstance;
+    component.projectId = 1;
+    component.task = task;
+    component.form.controls.title.setValue('Tâche');
+    component.submit();
+    expect(component.saving()).toBe(false);
+    expect(component.error()).toContain('introuvable');
   });
 
   it('charge le détail d’une tâche et son historique', () => {
